@@ -9,8 +9,10 @@
   const SKIP_SELECTOR = 'script, style, noscript, template, svg, head';
   const ATTRIBUTES = ['aria-label', 'alt', 'title'];
   const META_KEYS = /description|title|keywords|^og:|^twitter:|^ai[-_:]|robots/;
-  const OWN_ATTR = 'data-trip-wire';
-  const MAX_SEGMENTS = 20000;
+  // Visible text gets its own budget so a page can't push hidden text,
+  // comments, or attributes past the limit by padding itself with filler.
+  const MAX_VISIBLE_TEXT_SEGMENTS = 20000;
+  const MAX_TOTAL_SEGMENTS = 60000;
   const MAX_CALLOUT_CHARS = 800;
   const COLOR_MATCH_DISTANCE = 24;
 
@@ -19,6 +21,9 @@
   let segmentNodes = new Map();
   let hiddenCache = new WeakMap();
   let blockCache = new WeakMap();
+  // Callout hosts we created, by segment id. Ownership is tracked here rather
+  // than with a DOM attribute, which the page could forge to evade scanning.
+  const calloutHosts = new Map();
 
   // ---------- visibility ----------
 
@@ -138,11 +143,21 @@
     hiddenCache = new WeakMap();
     blockCache = new WeakMap();
     const segments = [];
+    let visibleTextCount = 0;
+    let droppedSegments = 0;
 
     const add = (anchor, element, text, source, hiddenReasons) => {
       const normalized = text.replace(/[ \t\n\r\f]+/g, ' ').trim();
-      if (!normalized || segments.length >= MAX_SEGMENTS) {
+      if (!normalized) {
         return;
+      }
+      const isVisibleText = source === 'text' && hiddenReasons.length === 0;
+      if (segments.length >= MAX_TOTAL_SEGMENTS || (isVisibleText && visibleTextCount >= MAX_VISIBLE_TEXT_SEGMENTS)) {
+        droppedSegments++;
+        return;
+      }
+      if (isVisibleText) {
+        visibleTextCount++;
       }
       const id = segments.length;
       segmentNodes.set(id, { anchor, element, source, text: normalized });
@@ -161,7 +176,7 @@
     const reasonsByParent = new Map();
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const parent = node.parentElement;
-      if (!parent || parent.closest(`[${OWN_ATTR}]`)) {
+      if (!parent) {
         continue;
       }
       if (node.nodeType === Node.COMMENT_NODE) {
@@ -189,9 +204,6 @@
 
     const attrSelector = ATTRIBUTES.map((a) => `[${a}]`).join(',');
     for (const el of document.body.querySelectorAll(attrSelector)) {
-      if (el.closest(`[${OWN_ATTR}]`)) {
-        continue;
-      }
       for (const attr of ATTRIBUTES) {
         const value = el.getAttribute(attr);
         if (value) {
@@ -207,7 +219,13 @@
       }
     }
 
-    return { url: location.href, title: document.title, segments };
+    return {
+      url: location.href,
+      title: document.title,
+      segments,
+      truncated: droppedSegments > 0,
+      droppedSegments,
+    };
   }
 
   // ---------- agent view ----------
@@ -231,18 +249,29 @@
     return anchor;
   }
 
+  function calloutLabel(finding) {
+    if (finding.hiddenReasons?.length) {
+      return 'Trip Wire · hidden from you, read by AI';
+    }
+    if (finding.decoded) {
+      return 'Trip Wire · invisible text, read by AI';
+    }
+    if (finding.ruleId.startsWith('instruction-')) {
+      return 'Trip Wire · visible text aimed at AI';
+    }
+    return 'Trip Wire · invisible characters in this text';
+  }
+
   function buildCallout(finding, fullText) {
     const host = document.createElement('div');
-    host.setAttribute(OWN_ATTR, 'callout');
-    host.dataset.segmentId = String(finding.segmentId);
-    const shadow = host.attachShadow({ mode: 'open' });
+    const shadow = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
     style.textContent = CALLOUT_CSS;
     const box = document.createElement('div');
     box.className = `box ${finding.severity}`;
     const label = document.createElement('div');
     label.className = 'label';
-    label.textContent = `Trip Wire · hidden from you, read by AI`;
+    label.textContent = calloutLabel(finding);
     const message = document.createElement('div');
     message.textContent = finding.message;
     const text = document.createElement('div');
@@ -266,6 +295,7 @@
         continue;
       }
       const callout = buildCallout(finding, entry.text);
+      calloutHosts.set(finding.segmentId, callout);
       if (entry.source === 'meta' || !entry.element || entry.element === document.body || !document.body.contains(entry.anchor)) {
         document.body.prepend(callout);
       } else if (entry.source === 'comment') {
@@ -278,14 +308,14 @@
   }
 
   function clearReveal() {
-    for (const el of document.querySelectorAll(`[${OWN_ATTR}="callout"]`)) {
-      el.remove();
+    for (const host of calloutHosts.values()) {
+      host.remove();
     }
+    calloutHosts.clear();
   }
 
   function focus(segmentId) {
-    const callout = document.querySelector(`[${OWN_ATTR}="callout"][data-segment-id="${Number(segmentId)}"]`);
-    callout?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    calloutHosts.get(segmentId)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   window.__tripWire = { extract, reveal, clearReveal, focus };

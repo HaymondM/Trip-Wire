@@ -61,6 +61,14 @@ h1 { margin: 0; font-size: 20px; }
 .score.dangerous { background: var(--high-bg); color: var(--high); }
 .score.suspicious { background: var(--medium-bg); color: var(--medium); }
 .score.clean { background: var(--clean-bg); color: var(--clean); }
+.score.incomplete { background: var(--medium-bg); color: var(--medium); }
+.warning {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--medium-bg);
+  color: var(--medium);
+}
 .page-title { margin: 8px 0 0; color: var(--muted); overflow-wrap: anywhere; }
 
 #controls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
@@ -81,6 +89,11 @@ button:hover { border-color: var(--muted); }
 #findings { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
 
 .finding {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
   border: 1px solid var(--border);
   border-left-width: 4px;
   border-radius: 8px;
@@ -88,6 +101,7 @@ button:hover { border-color: var(--muted); }
   background: var(--card);
   cursor: pointer;
 }
+.finding:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .finding.high { border-left-color: var(--high); }
 .finding.medium { border-left-color: var(--medium); }
 .finding.low { border-left-color: var(--low); }
@@ -105,8 +119,9 @@ button:hover { border-color: var(--muted); }
 .medium .severity { color: var(--medium); background: var(--medium-bg); }
 .low .severity { color: var(--low); background: var(--low-bg); }
 
-.finding p { margin: 6px 0 0; }
+.finding .message { display: block; margin-top: 6px; }
 .excerpt {
+  display: block;
   margin-top: 6px;
   padding: 6px 8px;
   border-radius: 6px;
@@ -115,4 +130,4 @@ button:hover { border-color: var(--muted); }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.decoded-label { font-weight: 600; font-size: 12px; margin-top: 6px; color: var(--high); }
+.decoded-label { display: block; font-weight: 600; font-size: 12px; margin-top: 6px; color: var(--high); }

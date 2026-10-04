@@ -59,17 +59,21 @@ func analyzeSegment(seg Segment) []Finding {
 		}
 	}
 
+	// Match against what a reader effectively sees, so an invisible character
+	// dropped inside a keyword ("instruc<ZWSP>tions") can't defeat the patterns.
+	readable := stripInvisible(seg.Text)
+
 	if decoded := decodeTagSmuggling(seg.Text); decoded != "" {
 		message := "Invisible Unicode tag characters smuggle hidden text into this passage"
 		if matched := matchInstructions(decoded); len(matched) > 0 {
 			message += " — the hidden text " + matched[0].description
 		}
-		f := newFinding("unicode-tag-smuggling", SeverityHigh, message+".", excerptAround(stripTags(seg.Text), nil))
+		f := newFinding("unicode-tag-smuggling", SeverityHigh, message+".", excerptAround(readable, nil))
 		f.Decoded = decoded
 		findings = append(findings, f)
 	}
 
-	if matched := matchInstructions(seg.Text); len(matched) > 0 {
+	if matched := matchInstructions(readable); len(matched) > 0 {
 		severity := SeverityMedium
 		message := "Visible text " + matched[0].description
 		if seg.Hidden() || seg.Source != "text" {
@@ -79,8 +83,11 @@ func analyzeSegment(seg Segment) []Finding {
 		if extra := len(matched) - 1; extra > 0 {
 			message += fmt.Sprintf(" (+%d more injection pattern%s)", extra, plural(extra))
 		}
-		loc := matched[0].re.FindStringIndex(seg.Text)
-		findings = append(findings, newFinding("instruction-"+matched[0].id, severity, message+".", excerptAround(seg.Text, loc)))
+		if readable != seg.Text && len(matchInstructions(seg.Text)) < len(matched) {
+			message += ", with keywords split by invisible characters"
+		}
+		loc := matched[0].re.FindStringIndex(readable)
+		findings = append(findings, newFinding("instruction-"+matched[0].id, severity, message+".", excerptAround(readable, loc)))
 	} else if seg.Hidden() && seg.Source == "text" && len([]rune(strings.TrimSpace(seg.Text))) >= longHiddenThreshold {
 		findings = append(findings, newFinding("hidden-text-block", SeverityLow,
 			describeLocation(seg)+" is a large block a human can't see.", excerptAround(seg.Text, nil)))
@@ -171,15 +178,6 @@ func runeBoundary(s string, i int) int {
 		i--
 	}
 	return i
-}
-
-func stripTags(text string) string {
-	return strings.Map(func(r rune) rune {
-		if r >= tagStart && r <= tagCancel {
-			return -1
-		}
-		return r
-	}, text)
 }
 
 func plural(n int) string {

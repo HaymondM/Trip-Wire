@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Fine Print",
+  "name": "Trip Wire",
   "version": "0.1.0",
-  "description": "Read the fine print your AI is reading. Reveals hidden prompt-injection text on web pages.",
+  "description": "Spot the hidden traps set for your AI. Reveals hidden prompt-injection text on web pages.",
   "minimum_chrome_version": "116",
   "action": {
-    "default_title": "Fine Print: scan this page"
+    "default_title": "Trip Wire: scan this page"
   },
   "background": {
     "service_worker": "background.js"

@@ -1,3 +1,3 @@
-module github.com/HaymondM/fine-print
+module github.com/HaymondM/Trip-Wire
 
 go 1.27.1

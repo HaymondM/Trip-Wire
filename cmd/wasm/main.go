@@ -1,14 +1,14 @@
 //go:build js && wasm
 
 // Command wasm exposes the engine to JavaScript as a global
-// finePrintAnalyze(segmentsJSON) -> reportJSON function.
+// tripWireAnalyze(segmentsJSON) -> reportJSON function.
 package main
 
 import (
 	"encoding/json"
 	"syscall/js"
 
-	"github.com/HaymondM/fine-print/engine"
+	"github.com/HaymondM/Trip-Wire/engine"
 )
 
 func errorJSON(msg string) string {
@@ -18,7 +18,7 @@ func errorJSON(msg string) string {
 
 func analyze(_ js.Value, args []js.Value) any {
 	if len(args) != 1 || args[0].Type() != js.TypeString {
-		return errorJSON("finePrintAnalyze expects one JSON string argument")
+		return errorJSON("tripWireAnalyze expects one JSON string argument")
 	}
 	var segments []engine.Segment
 	if err := json.Unmarshal([]byte(args[0].String()), &segments); err != nil {
@@ -32,6 +32,6 @@ func analyze(_ js.Value, args []js.Value) any {
 }
 
 func main() {
-	js.Global().Set("finePrintAnalyze", js.FuncOf(analyze))
+	js.Global().Set("tripWireAnalyze", js.FuncOf(analyze))
 	select {}
 }

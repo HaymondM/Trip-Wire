@@ -56,12 +56,12 @@ async function scan() {
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
     } catch {
       current = null;
-      showMessage('Fine Print only reads pages you ask it to. Click the Fine Print toolbar icon on this tab to scan it.');
+      showMessage('Trip Wire only reads pages you ask it to. Click the Trip Wire toolbar icon on this tab to scan it.');
       return;
     }
-    const page = await chrome.tabs.sendMessage(tab.id, { type: 'fine-print:extract' });
+    const page = await chrome.tabs.sendMessage(tab.id, { type: 'trip-wire:extract' });
     await engineReady;
-    const report = JSON.parse(globalThis.finePrintAnalyze(JSON.stringify(page.segments)));
+    const report = JSON.parse(globalThis.tripWireAnalyze(JSON.stringify(page.segments)));
     if (report.error) {
       showMessage(`Engine error: ${report.error}`);
       return;
@@ -113,7 +113,7 @@ function renderFinding(finding) {
       agentViewToggle.checked = true;
       await setAgentView(true);
     }
-    chrome.tabs.sendMessage(current.tabId, { type: 'fine-print:focus', segmentId: finding.segmentId });
+    chrome.tabs.sendMessage(current.tabId, { type: 'trip-wire:focus', segmentId: finding.segmentId });
   });
   return item;
 }
@@ -123,8 +123,8 @@ async function setAgentView(on) {
     return;
   }
   const message = on
-    ? { type: 'fine-print:reveal', findings: current.report.findings }
-    : { type: 'fine-print:clear' };
+    ? { type: 'trip-wire:reveal', findings: current.report.findings }
+    : { type: 'trip-wire:clear' };
   await chrome.tabs.sendMessage(current.tabId, message);
 }
 
@@ -132,20 +132,20 @@ rescanBtn.addEventListener('click', scan);
 agentViewToggle.addEventListener('change', () => setAgentView(agentViewToggle.checked));
 
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type === 'fine-print:scan') {
+  if (msg?.type === 'trip-wire:scan') {
     scan();
   }
 });
 
 chrome.tabs.onActivated.addListener(() => {
   current = null;
-  showMessage('Switched tabs. Click the Fine Print toolbar icon to scan this page.');
+  showMessage('Switched tabs. Click the Trip Wire toolbar icon to scan this page.');
 });
 
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (current?.tabId === tabId && info.status === 'loading') {
     current = null;
-    showMessage('Page changed. Click the Fine Print toolbar icon to scan it again.');
+    showMessage('Page changed. Click the Trip Wire toolbar icon to scan it again.');
   }
 });
 

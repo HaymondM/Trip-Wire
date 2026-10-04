@@ -2,14 +2,14 @@
 // might read from the page, tagged with the reasons a human can't see it, and
 // can reveal flagged text in place ("agent view").
 (() => {
-  if (window.__finePrint) {
+  if (window.__tripWire) {
     return;
   }
 
   const SKIP_SELECTOR = 'script, style, noscript, template, svg, head';
   const ATTRIBUTES = ['aria-label', 'alt', 'title'];
   const META_KEYS = /description|title|keywords|^og:|^twitter:|^ai[-_:]|robots/;
-  const OWN_ATTR = 'data-fine-print';
+  const OWN_ATTR = 'data-trip-wire';
   const MAX_SEGMENTS = 20000;
   const MAX_CALLOUT_CHARS = 800;
   const COLOR_MATCH_DISTANCE = 24;
@@ -242,7 +242,7 @@
     box.className = `box ${finding.severity}`;
     const label = document.createElement('div');
     label.className = 'label';
-    label.textContent = `Fine Print · hidden from you, read by AI`;
+    label.textContent = `Trip Wire · hidden from you, read by AI`;
     const message = document.createElement('div');
     message.textContent = finding.message;
     const text = document.createElement('div');
@@ -288,25 +288,25 @@
     callout?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  window.__finePrint = { extract, reveal, clearReveal, focus };
+  window.__tripWire = { extract, reveal, clearReveal, focus };
 
   if (!globalThis.chrome?.runtime?.onMessage) {
     return; // loaded outside the extension (test harness)
   }
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     switch (msg?.type) {
-      case 'fine-print:extract':
+      case 'trip-wire:extract':
         sendResponse(extract());
         break;
-      case 'fine-print:reveal':
+      case 'trip-wire:reveal':
         reveal(msg.findings || []);
         sendResponse({ ok: true });
         break;
-      case 'fine-print:clear':
+      case 'trip-wire:clear':
         clearReveal();
         sendResponse({ ok: true });
         break;
-      case 'fine-print:focus':
+      case 'trip-wire:focus':
         focus(msg.segmentId);
         sendResponse({ ok: true });
         break;

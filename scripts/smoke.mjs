@@ -22,7 +22,7 @@ const segments = [
   },
 ];
 
-const report = JSON.parse(globalThis.finePrintAnalyze(JSON.stringify(segments)));
+const report = JSON.parse(globalThis.tripWireAnalyze(JSON.stringify(segments)));
 console.log(JSON.stringify(report, null, 2));
 
 if (report.verdict !== 'dangerous' || report.findings.length === 0) {

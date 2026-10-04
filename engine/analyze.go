@@ -16,6 +16,7 @@ var hiddenReasonLabels = map[string]string{
 	"offscreen":                "positioned off-screen",
 	"clipped":                  "clipped to nothing",
 	"zero-size":                "zero-size container",
+	"noscript":                 "inside <noscript>",
 }
 
 const (

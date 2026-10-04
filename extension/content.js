@@ -184,7 +184,15 @@
         add(node, parent, node.data, 'comment', ['html-comment']);
         continue;
       }
-      if (parent.closest(SKIP_SELECTOR) || !node.data.trim()) {
+      if (parent.closest(SKIP_SELECTOR)) {
+        continue;
+      }
+      if (!node.data.trim()) {
+        // Keep the space between inline elements ("<b>previous</b> <em>instructions</em>")
+        // so words don't fuse and slip past the patterns.
+        if (group && group.block === blockOf(parent)) {
+          group.text += ' ';
+        }
         continue;
       }
       if (!reasonsByParent.has(parent)) {

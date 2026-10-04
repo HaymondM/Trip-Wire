@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Fine Print",
+  "version": "0.1.0",
+  "description": "Read the fine print your AI is reading. Reveals hidden prompt-injection text on web pages.",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "Fine Print: scan this page"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": ["activeTab", "scripting", "sidePanel"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

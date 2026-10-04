@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fine Print</title>
+  <link rel="stylesheet" href="sidepanel.css">
+  <script src="wasm_exec.js"></script>
+  <script src="sidepanel.js" type="module"></script>
+</head>
+<body>
+  <header>
+    <h1>Fine Print</h1>
+    <p class="tagline">Read the fine print your AI is reading.</p>
+  </header>
+
+  <section id="status" aria-live="polite">
+    <p class="muted">Loading engine…</p>
+  </section>
+
+  <section id="controls" hidden>
+    <button id="rescan" type="button">Rescan page</button>
+    <label class="toggle">
+      <input id="agent-view" type="checkbox">
+      <span>Show what the AI sees</span>
+    </label>
+  </section>
+
+  <ol id="findings"></ol>
+</body>
+</html>

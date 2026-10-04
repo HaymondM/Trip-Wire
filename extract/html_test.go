@@ -168,3 +168,60 @@ func TestPlainTextParagraphs(t *testing.T) {
 		t.Fatalf("expected medium visible-instruction finding, got %+v", r.Findings)
 	}
 }
+
+func hiddenReasonsFor(t *testing.T, page, text string) []string {
+	t.Helper()
+	segments, _ := scanString(t, page)
+	for _, s := range segments {
+		if strings.Contains(s.Text, text) {
+			return s.HiddenReasons
+		}
+	}
+	t.Fatalf("no segment contains %q", text)
+	return nil
+}
+
+func TestCascadeResolvesLikeABrowser(t *testing.T) {
+	cases := []struct {
+		name       string
+		page       string
+		wantHidden bool
+	}{
+		{"id beats later tag rule", `<style>#secret{display:none} div{display:block}</style><div id="secret">payload</div>`, true},
+		{"class beats earlier tag rule", `<style>div{display:block} .x{display:none}</style><div class="x">payload</div>`, true},
+		{"later rule wins at equal specificity", `<style>.x{display:none} .y{display:block}</style><div class="x y">payload</div>`, false},
+		{"inline beats stylesheet", `<style>.x{display:none}</style><div class="x" style="display:block">payload</div>`, false},
+		{"important in stylesheet beats inline", `<style>.x{display:none !important}</style><div class="x" style="display:block">payload</div>`, true},
+		{"important beats later declaration in same block", `<div style="display:none!important;display:block">payload</div>`, true},
+		{"important beats higher specificity", `<style>.x{display:none!important} #y{display:block}</style><div class="x" id="y">payload</div>`, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reasons := hiddenReasonsFor(t, "<html><head>"+tc.page+"</head></html>", "payload")
+			if got := slices.Contains(reasons, "display-none"); got != tc.wantHidden {
+				t.Fatalf("hidden = %v, want %v (reasons %v)", got, tc.wantHidden, reasons)
+			}
+		})
+	}
+}
+
+func TestSelectorCaseSensitivity(t *testing.T) {
+	cases := []struct {
+		name       string
+		page       string
+		wantHidden bool
+	}{
+		{"mixed-case class matches exactly", `<style>.Secret{display:none}</style><div class="Secret">payload</div>`, true},
+		{"class case must match", `<style>.secret{display:none}</style><div class="Secret">payload</div>`, false},
+		{"mixed-case id matches exactly", `<style>#Hide{display:none}</style><div id="Hide">payload</div>`, true},
+		{"tag names are case-insensitive", `<style>DIV.note{display:none}</style><div class="note">payload</div>`, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reasons := hiddenReasonsFor(t, "<html><head>"+tc.page+"</head></html>", "payload")
+			if got := slices.Contains(reasons, "display-none"); got != tc.wantHidden {
+				t.Fatalf("hidden = %v, want %v (reasons %v)", got, tc.wantHidden, reasons)
+			}
+		})
+	}
+}

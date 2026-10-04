@@ -97,9 +97,23 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return exitOK
 }
 
+// readLimited reads all of r, refusing input over the limit rather than
+// scanning only a prefix: an injection placed past the cutoff must never
+// come back as a clean verdict.
+func readLimited(r io.Reader) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(r, maxBodyBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxBodyBytes {
+		return nil, fmt.Errorf("input exceeds the %d MiB limit; refusing to scan only part of it", maxBodyBytes>>20)
+	}
+	return body, nil
+}
+
 func load(source string, stdin io.Reader, timeout time.Duration) ([]byte, string, error) {
 	if source == "-" {
-		body, err := io.ReadAll(io.LimitReader(stdin, maxBodyBytes))
+		body, err := readLimited(stdin)
 		return body, sniff(body, ""), err
 	}
 	if u, err := url.Parse(source); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
@@ -110,7 +124,7 @@ func load(source string, stdin io.Reader, timeout time.Duration) ([]byte, string
 		return nil, "", err
 	}
 	defer f.Close()
-	body, err := io.ReadAll(io.LimitReader(f, maxBodyBytes))
+	body, err := readLimited(f)
 	return body, sniff(body, ""), err
 }
 
@@ -129,7 +143,7 @@ func fetch(target string, timeout time.Duration) ([]byte, string, error) {
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return nil, "", fmt.Errorf("fetching %s: %s", target, resp.Status)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
+	body, err := readLimited(resp.Body)
 	return body, sniff(body, resp.Header.Get("Content-Type")), err
 }
 

@@ -8,18 +8,36 @@ import (
 	"golang.org/x/net/html"
 )
 
-// declarations is a parsed CSS declaration block: lowercase property -> value.
+// declarations is an element's resolved style: lowercase property -> value.
 type declarations map[string]string
 
-func parseDeclarations(block string) declarations {
-	decls := declarations{}
+type declaration struct {
+	value     string
+	important bool
+}
+
+// declarationBlock is one parsed rule body or style attribute.
+type declarationBlock map[string]declaration
+
+var importantRe = regexp.MustCompile(`\s*!\s*important\s*$`)
+
+// parseDeclarations parses "prop: value; ..." the way a browser does within a
+// single block: a later declaration replaces an earlier one unless the earlier
+// one is !important and the later one isn't.
+func parseDeclarations(block string) declarationBlock {
+	decls := declarationBlock{}
 	for _, part := range strings.Split(block, ";") {
 		prop, value, ok := strings.Cut(part, ":")
 		if !ok {
 			continue
 		}
-		value = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(strings.ToLower(value)), "!important"))
-		decls[strings.TrimSpace(strings.ToLower(prop))] = strings.TrimSpace(value)
+		prop = strings.TrimSpace(strings.ToLower(prop))
+		value = strings.TrimSpace(strings.ToLower(value))
+		d := declaration{value: importantRe.ReplaceAllString(value, ""), important: importantRe.MatchString(value)}
+		if prev, exists := decls[prop]; exists && prev.important && !d.important {
+			continue
+		}
+		decls[prop] = d
 	}
 	return decls
 }
@@ -33,16 +51,18 @@ type simpleSelector struct {
 	classes []string
 }
 
-var simpleSelectorRe = regexp.MustCompile(`^([a-z][a-z0-9]*)?((?:[#.][\w-]+)*)$`)
+var simpleSelectorRe = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9]*)?((?:[#.][\w-]+)*)$`)
 var selectorPartRe = regexp.MustCompile(`[#.][\w-]+`)
 
+// parseSelector keeps the case of ids and classes, which are case-sensitive
+// in HTML, and lowercases only the tag name, which isn't.
 func parseSelector(s string) (simpleSelector, bool) {
 	s = strings.TrimSpace(s)
 	m := simpleSelectorRe.FindStringSubmatch(s)
 	if s == "" || m == nil {
 		return simpleSelector{}, false
 	}
-	sel := simpleSelector{tag: m[1]}
+	sel := simpleSelector{tag: strings.ToLower(m[1])}
 	for _, part := range selectorPartRe.FindAllString(m[2], -1) {
 		if part[0] == '#' {
 			sel.id = part[1:]
@@ -76,9 +96,32 @@ func (s simpleSelector) matches(n *html.Node) bool {
 	return true
 }
 
+// specificity is CSS (ids, classes, type selectors), compared left to right.
+type specificity [3]int
+
+func (s simpleSelector) specificity() specificity {
+	sp := specificity{0, len(s.classes), 0}
+	if s.id != "" {
+		sp[0] = 1
+	}
+	if s.tag != "" {
+		sp[2] = 1
+	}
+	return sp
+}
+
+func (a specificity) less(b specificity) bool {
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] < b[i]
+		}
+	}
+	return false
+}
+
 type rule struct {
 	selector simpleSelector
-	decls    declarations
+	decls    declarationBlock
 }
 
 var cssCommentRe = regexp.MustCompile(`(?s)/\*.*?\*/`)
@@ -105,7 +148,7 @@ func parseStylesheet(css string) []rule {
 				if !strings.HasPrefix(strings.TrimSpace(selectorText), "@") {
 					decls := parseDeclarations(css[start:i])
 					for _, s := range strings.Split(selectorText, ",") {
-						if sel, ok := parseSelector(strings.ToLower(s)); ok {
+						if sel, ok := parseSelector(s); ok {
 							rules = append(rules, rule{selector: sel, decls: decls})
 						}
 					}
@@ -195,9 +238,16 @@ func parseColor(v string) (rgba, bool) {
 		var c [4]float64
 		c[3] = 1
 		for i := 0; i < len(fields) && i < 4; i++ {
+			percent := strings.HasSuffix(fields[i], "%")
 			f, err := strconv.ParseFloat(strings.TrimSuffix(fields[i], "%"), 64)
 			if err != nil {
 				return rgba{}, false
+			}
+			switch {
+			case percent && i < 3:
+				f = f * 255 / 100 // color channel: 100% = 255
+			case percent:
+				f /= 100 // alpha: 100% = 1
 			}
 			c[i] = f
 		}

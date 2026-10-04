@@ -204,21 +204,63 @@ func colorDistance(x, y rgba) float64 {
 	return math.Sqrt((x.r-y.r)*(x.r-y.r) + (x.g-y.g)*(x.g-y.g) + (x.b-y.b)*(x.b-y.b))
 }
 
-// applyStyle computes the element's effective declarations (matching <style>
-// rules in document order, then the inline style) and folds them into in.
-func (x *extractor) applyStyle(n *html.Node, parent inherited) inherited {
-	in := parent.child()
-	decls := declarations{}
-	for _, r := range x.rules {
-		if r.selector.matches(n) {
-			for k, v := range r.decls {
-				decls[k] = v
-			}
+// cascaded is a candidate value for one property, with what the CSS cascade
+// needs to pick a winner.
+type cascaded struct {
+	value     string
+	important bool
+	inline    bool
+	spec      specificity
+	order     int
+}
+
+// beats reports whether c wins over other: !important first, then the style
+// attribute over stylesheet rules, then specificity, then later source order.
+func (c cascaded) beats(other cascaded) bool {
+	if c.important != other.important {
+		return c.important
+	}
+	if c.inline != other.inline {
+		return c.inline
+	}
+	if c.spec != other.spec {
+		return other.spec.less(c.spec)
+	}
+	return c.order > other.order
+}
+
+// computedStyle resolves the element's declarations from matching <style>
+// rules and its style attribute.
+func (x *extractor) computedStyle(n *html.Node) declarations {
+	winners := map[string]cascaded{}
+	consider := func(prop string, c cascaded) {
+		if current, ok := winners[prop]; !ok || c.beats(current) {
+			winners[prop] = c
 		}
 	}
-	for k, v := range parseDeclarations(attr(n, "style")) {
-		decls[k] = v
+	for i, r := range x.rules {
+		if !r.selector.matches(n) {
+			continue
+		}
+		spec := r.selector.specificity()
+		for prop, d := range r.decls {
+			consider(prop, cascaded{value: d.value, important: d.important, spec: spec, order: i})
+		}
 	}
+	for prop, d := range parseDeclarations(attr(n, "style")) {
+		consider(prop, cascaded{value: d.value, important: d.important, inline: true, order: len(x.rules)})
+	}
+	decls := make(declarations, len(winners))
+	for prop, c := range winners {
+		decls[prop] = c.value
+	}
+	return decls
+}
+
+// applyStyle folds the element's computed style into what its children inherit.
+func (x *extractor) applyStyle(n *html.Node, parent inherited) inherited {
+	in := parent.child()
+	decls := x.computedStyle(n)
 
 	for _, class := range strings.Fields(attr(n, "class")) {
 		switch hidingClasses[class] {

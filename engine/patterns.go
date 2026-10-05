@@ -53,3 +53,16 @@ func matchInstructions(text string) []instructionPattern {
 	}
 	return matched
 }
+
+// commandRe matches text telling the reader to run something: package
+// installs, downloads piped into a shell, and flags that change where software
+// comes from. A subtle injection doesn't need to address an AI; it only needs
+// an agent to carry out a command that a person never saw.
+var commandRe = regexp.MustCompile(`(?i)(\b(pip3?|pipx|npm|npx|yarn|pnpm|gem|cargo|go|brew|apt-get|apt|yum|dnf|choco|winget|conda)\s+(install|add|get)\b|\b(curl|wget)\b[^|\n]*\|\s*(sudo\s+)?(ba|z)?sh\b|--(extra-)?index-url\b|--trusted-host\b|--registry\b|\bsudo\s+\S|\bchmod\s+\+x\b|\bbase64\s+(-d|--decode)\b|\b(iex|Invoke-Expression)\b)`)
+
+// riskyCommandRe is the subset of commands that's risky even on a legitimate
+// page: a download piped straight into a shell, software from a non-default
+// package source, or a decoded payload being executed.
+var riskyCommandRe = regexp.MustCompile(`(?i)(\b(curl|wget)\b[^|\n]*\|\s*(sudo\s+)?(ba|z)?sh\b|--(extra-)?index-url\b|--trusted-host\b|--registry\b|\bbase64\s+(-d|--decode)\b|\b(iex|Invoke-Expression)\b)`)
+
+var linkRe = regexp.MustCompile(`(?i)\bhttps?://[^\s"'<>]+`)

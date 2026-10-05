@@ -276,3 +276,17 @@ func TestOtherToolsAndBadInput(t *testing.T) {
 		t.Errorf("invalid input should be a non-blocking error (exit 1, no stdout), got code=%d stdout=%q", code, stdout.String())
 	}
 }
+
+// The subtle page has no AI-directed wording at all: just a camouflaged
+// "install from our index instead" note and an off-screen setup script.
+// In live tests, Haiku recommended both to a developer when nothing stopped it.
+func TestWebFetchToSubtleInjectionPageIsDenied(t *testing.T) {
+	stubFetch(t, readTestPage(t, "05-library-docs.html"), "text/html", nil)
+	_, raw, out := runHook(t, webFetchInput("https://docs.yamlfast.example/install"))
+	if out.HookSpecificOutput == nil || out.HookSpecificOutput.PermissionDecision != "deny" {
+		t.Fatalf("expected deny, got %s", raw)
+	}
+	if strings.Contains(raw, "packages.yamlfast.example") || strings.Contains(raw, "macos-setup.sh") {
+		t.Errorf("deny reason leaks the attacker's command:\n%s", raw)
+	}
+}

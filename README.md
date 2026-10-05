@@ -39,10 +39,22 @@ Built for the Tinker Society Hackathon (fall 2026).
 - **Instructions aimed at AI:** "ignore previous instructions", text addressed
   to an AI, fake system-prompt markers, requests to hide things from the user,
   and attempts to send data to outside addresses
+- **Subtle injections with no telltale wording:** camouflaged commands
+  (package installs from another source, scripts piped to a shell), links, and
+  fake "facts". These are hidden with white-on-white text, near-zero fonts, or
+  off-screen positioning. Legitimate pages rarely hide real content those ways.
 
-A finding is only serious when text is both hidden *and* reads like
-instructions to an AI, so legitimate hidden content (screen-reader links,
-collapsed menus, cookie banners) doesn't raise false alarms.
+A finding is only serious when hidden text either reads like instructions to
+an AI or is camouflaged and carries something an agent could act on. Content
+hidden the ordinary way (screen-reader links, collapsed menus, documentation
+tabs, cookie banners) doesn't raise false alarms.
+
+Why this matters even though modern models resist obvious injections: in live
+tests with the subtle page (`testpages/05-library-docs.html`), Claude Haiku told
+a developer to install from the attacker's package server and pipe a setup
+script into the shell. Larger models fared better, but only by their own
+judgment, and without warning the user the page was hostile. Trip Wire blocks
+the page before any model reads it, whichever model is in use.
 
 ## Getting started
 

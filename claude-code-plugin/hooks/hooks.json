@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/trip-wire\" hook claude-code",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/run-hook.sh\"",
             "timeout": 30
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/trip-wire\" hook claude-code",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/run-hook.sh\"",
             "timeout": 30
           }
         ]

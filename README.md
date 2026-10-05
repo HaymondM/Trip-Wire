@@ -70,11 +70,13 @@ or above it, `2` on error.
 **Claude Code plugin:**
 
 ```bash
-claude --plugin-dir ./claude-code-plugin
+make install-plugin
 ```
 
-See [claude-code-plugin/README.md](claude-code-plugin/README.md) for what the
-hooks do and how they were verified against a live Claude Code session.
+That installs it for every Claude Code session, in the terminal and in the
+desktop app's Code tab. See [claude-code-plugin/README.md](claude-code-plugin/README.md)
+for uninstalling, one-off use, what the hooks do, and how they were verified
+against a live Claude Code session.
 
 **Test pages:** `testpages/` has realistic examples of each attack, plus a
 clean page that should score zero. Serve them with
@@ -99,7 +101,8 @@ http://localhost:8765/testpages/.
 | `cmd/trip-wire/` | CLI and the Claude Code hook |
 | `cmd/wasm/` | WebAssembly bridge for the extension |
 | `extension/` | Chrome extension (Manifest V3) |
-| `claude-code-plugin/` | Claude Code plugin manifest and hooks |
+| `claude-code-plugin/` | Claude Code plugin manifest, hooks, and launcher |
+| `.claude-plugin/` | Marketplace file that lets Claude Code install the plugin |
 | `testpages/` | Attack examples and a clean control page |
 
 ## Known limits

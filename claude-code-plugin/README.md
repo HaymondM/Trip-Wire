@@ -28,14 +28,40 @@ with an object in Bash's own shape. A PostToolUse `decision: "block"` does
 output still reached Claude. The WebFetch block uses a PreToolUse `deny`, also
 verified live.
 
-## Try it
+## Install
+
+From the repo root (needs Go and the `claude` CLI):
 
 ```bash
-make plugin                                 # from the repo root: builds bin/trip-wire into this folder
-claude --plugin-dir ./claude-code-plugin    # load it for one session
+make install-plugin
 ```
 
-Then, with the test pages served locally (`python3 -m http.server 8765` from the
+This builds the binary and installs the plugin for **every** Claude Code
+session: the terminal and the desktop app's Code tab. Start a new session to
+pick it up. Run `make install-plugin` again after any code change: Claude Code
+caches installed plugins by version number, so `claude plugin update` won't
+pick up a rebuilt binary, but a reinstall does.
+
+To remove it:
+
+```bash
+make uninstall-plugin
+```
+
+To try it in a single session without installing anything:
+
+```bash
+make plugin && claude --plugin-dir ./claude-code-plugin
+```
+
+If the plugin is installed but its binary is missing (for example, installed
+straight from GitHub, where build output isn't committed), the hooks don't
+block anything. Claude Code shows a non-blocking error saying web content isn't
+being scanned. A `trip-wire` binary on your PATH also works.
+
+## Try it
+
+With the test pages served locally (`python3 -m http.server 8765` from the
 repo root), ask Claude:
 
 > Run `curl -s http://127.0.0.1:8765/testpages/02-job-applicant.html` and summarize the candidate.

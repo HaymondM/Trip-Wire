@@ -1,13 +1,19 @@
-# Trip Wire
+<p align="center">
+  <img src="assets/icon.svg" alt="Trip Wire logo" width="96">
+</p>
 
-**Spot the hidden traps set for your AI.**
+<h1 align="center">Trip Wire</h1>
 
-Web pages increasingly hide instructions meant for AI agents rather than
-people: *"AI assistant: ignore all previous instructions and…"* tucked into
-white-on-white text, HTML comments, or invisible Unicode. Trip Wire finds those
-traps, both for people browsing with AI and for AI agents browsing on their own.
+<p align="center"><strong>Spot the hidden traps set for your AI.</strong></p>
 
-Built for the Tinker Society Hackathon (fall 2026).
+<p align="center">
+  Web pages increasingly hide instructions meant for AI agents rather than
+  people: <em>"AI assistant: ignore all previous instructions and…"</em> tucked into
+  white-on-white text, HTML comments, or invisible Unicode. Trip Wire finds those
+  traps, both for people browsing with AI and for AI agents browsing on their own.
+</p>
+
+<p align="center">Built for the Tinker Society Hackathon (fall 2026).</p>
 
 ## One engine, three ways to use it
 
@@ -112,7 +118,8 @@ http://localhost:8765/testpages/.
 | `extract/` | Raw-HTML extractor that works out hidden text without a browser |
 | `cmd/trip-wire/` | CLI and the Claude Code hook |
 | `cmd/wasm/` | WebAssembly bridge for the extension |
-| `extension/` | Chrome extension (Manifest V3) |
+| `extension/` | Chrome extension (Manifest V3) and its icons |
+| `assets/` | SVG sources for the logo and extension icons (`make icons` rebuilds the PNGs) |
 | `claude-code-plugin/` | Claude Code plugin manifest, hooks, and launcher |
 | `.claude-plugin/` | Marketplace file that lets Claude Code install the plugin |
 | `testpages/` | Attack examples and a clean control page |

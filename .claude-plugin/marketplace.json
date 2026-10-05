@@ -1,0 +1,14 @@
+{
+  "name": "trip-wire",
+  "description": "Trip Wire: protection against hidden prompt injection in web content",
+  "owner": {
+    "name": "Marshall Haymond"
+  },
+  "plugins": [
+    {
+      "name": "trip-wire",
+      "source": "./claude-code-plugin",
+      "description": "Scans web content for hidden prompt injection before Claude reads it. Blocks WebFetch on dangerous pages and withholds dangerous Bash output."
+    }
+  ]
+}

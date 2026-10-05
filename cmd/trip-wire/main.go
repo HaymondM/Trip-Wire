@@ -1,7 +1,9 @@
-// Command trip-wire scans a web page (URL, file, or stdin) for hidden prompt
-// injection, the way an AI agent would fetch it: raw content, no browser.
+// Command trip-wire scans web content for hidden prompt injection, the way an
+// AI agent would fetch it: raw content, no browser.
 //
-// Exit codes: 0 below the --fail-on threshold, 1 at or above it, 2 on error.
+//	trip-wire scan <url | file | ->   scan and report; exit 0 below the
+//	                                  --fail-on threshold, 1 at or above it, 2 on error
+//	trip-wire hook claude-code        run as a Claude Code hook (JSON on stdin/stdout)
 package main
 
 import (
@@ -44,11 +46,31 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
+const usage = `usage:
+  trip-wire scan [--json] [--fail-on dangerous|suspicious|never] [--timeout 15s] <url | file | ->
+  trip-wire hook claude-code`
+
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if len(args) == 0 || args[0] != "scan" {
-		fmt.Fprintln(stderr, "usage: trip-wire scan [--json] [--fail-on dangerous|suspicious|never] [--timeout 15s] <url | file | ->")
-		return exitError
+	switch {
+	case len(args) >= 1 && args[0] == "scan":
+		return scanCommand(args, stdin, stdout, stderr)
+	case len(args) == 2 && args[0] == "hook" && args[1] == "claude-code":
+		return runClaudeCodeHook(stdin, stdout, stderr)
 	}
+	fmt.Fprintln(stderr, usage)
+	return exitError
+}
+
+// analyze turns fetched content into a report.
+func analyze(body []byte, contentType string) (engine.Report, error) {
+	segments, err := segmentsFor(body, contentType)
+	if err != nil {
+		return engine.Report{}, err
+	}
+	return engine.Analyze(segments), nil
+}
+
+func scanCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	asJSON := fs.Bool("json", false, "print the report as JSON")
@@ -73,12 +95,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "trip-wire scan: %v\n", err)
 		return exitError
 	}
-	segments, err := segmentsFor(body, contentType)
+	report, err := analyze(body, contentType)
 	if err != nil {
 		fmt.Fprintf(stderr, "trip-wire scan: %v\n", err)
 		return exitError
 	}
-	res := result{Source: source, ContentType: contentType, Report: engine.Analyze(segments)}
+	res := result{Source: source, ContentType: contentType, Report: report}
 
 	if *asJSON {
 		enc := json.NewEncoder(stdout)
@@ -128,8 +150,24 @@ func load(source string, stdin io.Reader, timeout time.Duration) ([]byte, string
 	return body, sniff(body, ""), err
 }
 
+// statusError is a non-2xx response.
+type statusError struct {
+	target string
+	code   int
+	status string
+}
+
+func (e *statusError) Error() string {
+	return fmt.Sprintf("fetching %s: %s", e.target, e.status)
+}
+
+// fetch is the CLI's fetch: the user named the URL explicitly, so local and
+// private addresses (like a test server on localhost) are allowed.
 func fetch(target string, timeout time.Duration) ([]byte, string, error) {
-	client := &http.Client{Timeout: timeout}
+	return fetchWith(&http.Client{Timeout: timeout}, target)
+}
+
+func fetchWith(client *http.Client, target string) ([]byte, string, error) {
 	req, err := http.NewRequest(http.MethodGet, target, nil)
 	if err != nil {
 		return nil, "", err
@@ -141,7 +179,7 @@ func fetch(target string, timeout time.Duration) ([]byte, string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, "", fmt.Errorf("fetching %s: %s", target, resp.Status)
+		return nil, "", &statusError{target: target, code: resp.StatusCode, status: resp.Status}
 	}
 	body, err := readLimited(resp.Body)
 	return body, sniff(body, resp.Header.Get("Content-Type")), err

@@ -2,39 +2,111 @@
 
 **Spot the hidden traps set for your AI.**
 
-Trip Wire is a Chrome extension that reveals hidden prompt injections on web
-pages: instructions aimed at AI agents and assistants that a human visitor
-can't see. Other scanners alert you to injections and strip them out; Trip
-Wire shows you the page the way an AI reads it, with the hidden instructions
-surfaced right where they live.
+Web pages increasingly hide instructions meant for AI agents rather than
+people: *"AI assistant: ignore all previous instructions and…"* tucked into
+white-on-white text, HTML comments, or invisible Unicode. Trip Wire finds those
+traps, both for people browsing with AI and for AI agents browsing on their own.
 
 Built for the Tinker Society Hackathon (fall 2026).
 
-## Why
+## One engine, three ways to use it
 
-AI browser agents and assistants increasingly read web pages on our behalf,
-and attackers have noticed. Pages now hide text like *"AI assistant: ignore
-all previous instructions and…"* using tricks invisible to people:
+```
+                 engine/  (Go: detection and scoring)
+                /                 |                  \
+   Chrome extension         trip-wire CLI        Claude Code plugin
+   (compiled to WASM,     (scan a URL, file,     (hooks that scan web
+    runs in the browser)    or stdin)             content before Claude
+                                                  reads it)
+```
 
-- white-on-white text, zero font size, `display:none`, off-screen positioning
-- HTML comments, `alt` / `aria-label` / `title` attributes, meta tags
-- invisible Unicode tag characters that smuggle whole sentences inside
-  ordinary-looking text
+| | Who it protects | What it does |
+|---|---|---|
+| **Chrome extension** | You, browsing with an AI assistant | Scores the page and shows it the way an AI reads it, with hidden instructions revealed in place |
+| **CLI** | CI pipelines, scripts, anyone checking a URL | `trip-wire scan <url>` prints findings; the exit code lets a pipeline fail on dangerous pages |
+| **Claude Code plugin** | AI agents that fetch the web themselves | Blocks WebFetch on dangerous pages and withholds dangerous Bash output (like `curl`) before Claude reads it |
 
-## How it works
+## What it detects
 
-- **Content script:** walks the page and collects every piece of text an AI
-  might read, recording *why* a human can't see it.
-- **Detection engine (Go → WebAssembly):** scores each piece of text: is it
-  hidden, and does it read like instructions to an AI? It decodes smuggled
-  Unicode and avoids false alarms on legitimate hidden content like
-  screen-reader-only links and collapsed menus.
-- **Side panel:** shows a risk score and findings, plus a "Show what the AI
-  sees" toggle that reveals hidden instructions in place on the page.
+- **Hidden text:** white-on-white, near-zero font size, `display:none`,
+  `visibility:hidden`, zero opacity, off-screen positioning, and clipping (the
+  CLI and plugin also flag `<noscript>` content, which agents see but people
+  usually don't)
+- **Places people never look:** HTML comments, `alt` / `aria-label` / `title`
+  attributes, and meta tags
+- **Invisible Unicode:** tag characters that smuggle whole sentences (decoded
+  and shown), zero-width characters, and bidirectional overrides
+- **Instructions aimed at AI:** "ignore previous instructions", text addressed
+  to an AI, fake system-prompt markers, requests to hide things from the user,
+  and attempts to send data to outside addresses
 
-Trip Wire only reads pages you explicitly ask it to scan (`activeTab`). Page
-content never leaves your browser.
+A finding is only serious when text is both hidden *and* reads like
+instructions to an AI, so legitimate hidden content (screen-reader links,
+collapsed menus, cookie banners) doesn't raise false alarms.
 
-## Status
+## Getting started
 
-Work in progress. See open pull requests for current development.
+Requires Go 1.27+ and `make`. Build everything from the repo root:
+
+```bash
+make build      # extension WASM engine, bin/trip-wire CLI, and the plugin binary
+make test       # Go tests for the engine, extractor, CLI, and hook
+```
+
+**Chrome extension:** open `chrome://extensions`, turn on Developer mode,
+choose **Load unpacked**, and select the `extension/` folder. Click the Trip
+Wire toolbar icon on any page to scan it.
+
+**CLI:**
+
+```bash
+bin/trip-wire scan https://example.com
+bin/trip-wire scan --json --fail-on suspicious page.html
+```
+
+Exit codes: `0` below the `--fail-on` threshold (default `dangerous`), `1` at
+or above it, `2` on error.
+
+**Claude Code plugin:**
+
+```bash
+claude --plugin-dir ./claude-code-plugin
+```
+
+See [claude-code-plugin/README.md](claude-code-plugin/README.md) for what the
+hooks do and how they were verified against a live Claude Code session.
+
+**Test pages:** `testpages/` has realistic examples of each attack, plus a
+clean page that should score zero. Serve them with
+`python3 -m http.server 8765` from the repo root and open
+http://localhost:8765/testpages/.
+
+## Privacy and permissions
+
+- **Extension:** reads only pages you explicitly ask it to scan (`activeTab`),
+  and page content never leaves your browser.
+- **Plugin:** never auto-approves a tool call. It either blocks a call or
+  leaves the decision to your normal permission settings. What it tells Claude
+  is only Trip Wire's own description of the findings, never the hidden text
+  itself.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `engine/` | Detection engine: instruction patterns, Unicode decoding, scoring |
+| `extract/` | Raw-HTML extractor that works out hidden text without a browser |
+| `cmd/trip-wire/` | CLI and the Claude Code hook |
+| `cmd/wasm/` | WebAssembly bridge for the extension |
+| `extension/` | Chrome extension (Manifest V3) |
+| `claude-code-plugin/` | Claude Code plugin manifest and hooks |
+| `testpages/` | Attack examples and a clean control page |
+
+## Known limits
+
+- Without a browser (CLI and plugin), text hidden by an external stylesheet
+  looks visible. Agents read every word either way, so instruction detection
+  still applies.
+- The plugin scans WebFetch pages with its own request, so a server that shows
+  different content to different clients could show Trip Wire a clean page.
+- Files read with Claude's Read tool aren't scanned yet.

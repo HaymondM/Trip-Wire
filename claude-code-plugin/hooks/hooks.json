@@ -1,0 +1,29 @@
+{
+  "description": "Trip Wire: scan web content for hidden prompt injection before Claude reads it",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/trip-wire\" hook claude-code",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/trip-wire\" hook claude-code",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

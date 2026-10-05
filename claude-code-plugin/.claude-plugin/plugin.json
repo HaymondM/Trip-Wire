@@ -1,0 +1,10 @@
+{
+  "name": "trip-wire",
+  "description": "Scans web content for hidden prompt injection before Claude reads it. Blocks WebFetch on dangerous pages and withholds dangerous curl/wget output.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Marshall Haymond"
+  },
+  "homepage": "https://github.com/HaymondM/Trip-Wire",
+  "repository": "https://github.com/HaymondM/Trip-Wire"
+}

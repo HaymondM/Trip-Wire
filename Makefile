@@ -3,7 +3,9 @@ WASM_EXEC := $(shell $(GO) env GOROOT)/lib/wasm/wasm_exec.js
 
 CLAUDE ?= claude
 
-.PHONY: build wasm cli plugin install-plugin uninstall-plugin test smoke
+RSVG ?= rsvg-convert
+
+.PHONY: build wasm cli plugin install-plugin uninstall-plugin icons test smoke
 
 build: wasm cli plugin
 
@@ -28,6 +30,15 @@ uninstall-plugin:
 wasm:
 	GOOS=js GOARCH=wasm $(GO) build -trimpath -ldflags="-s -w" -o extension/engine.wasm ./cmd/wasm
 	cp "$(WASM_EXEC)" extension/wasm_exec.js
+
+# Regenerates the extension icons from assets/. The PNGs are committed, so this
+# is only needed after editing an SVG, and needs librsvg (brew install librsvg).
+# The two small sizes use a simpler design so they stay readable in a toolbar.
+icons:
+	$(RSVG) -w 16 -h 16 assets/icon-small.svg -o extension/icons/icon-16.png
+	$(RSVG) -w 32 -h 32 assets/icon-small.svg -o extension/icons/icon-32.png
+	$(RSVG) -w 48 -h 48 assets/icon.svg -o extension/icons/icon-48.png
+	$(RSVG) -w 128 -h 128 assets/icon.svg -o extension/icons/icon-128.png
 
 test:
 	$(GO) test ./...

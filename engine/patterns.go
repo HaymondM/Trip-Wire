@@ -53,3 +53,28 @@ func matchInstructions(text string) []instructionPattern {
 	}
 	return matched
 }
+
+// Shared by commandRe and riskyCommandRe so the two can't drift apart.
+const (
+	// A download piped into something that executes it: any sh-family shell
+	// or common interpreter, by bare name or path, optionally behind sudo
+	// (with flags) or /usr/bin/env.
+	pipeToExecutor = `\b(curl|wget)\b[^|\n]*\|\s*(sudo\s+(-\S+\s+)*)?(\S*/)?(env\s+)?((a|ba|da|fi|k|z|c|tc)?sh|python[0-9.]*|perl|ruby|node)\b`
+	// Software from somewhere other than the default registry, or a decoded
+	// payload being executed.
+	riskyFlags = `--(extra-)?index-url\b|--trusted-host\b|--registry\b|\bbase64\s+(-d|--decode)\b|\b(iex|Invoke-Expression)\b`
+)
+
+// commandRe matches text telling the reader to run something: package
+// installs, downloads piped into a shell, and flags that change where software
+// comes from. A subtle injection doesn't need to address an AI; it only needs
+// an agent to carry out a command that a person never saw.
+var commandRe = regexp.MustCompile(`(?i)(\b(pip3?|pipx|npm|npx|yarn|pnpm|gem|cargo|go|brew|apt-get|apt|yum|dnf|choco|winget|conda)\s+(install|add|get)\b|` +
+	pipeToExecutor + `|` + riskyFlags + `|\bsudo\s+\S|\bchmod\s+\+x\b)`)
+
+// riskyCommandRe is the subset of commands that's risky even on a legitimate
+// page: a download piped straight into a shell or interpreter, software from
+// a non-default package source, or a decoded payload being executed.
+var riskyCommandRe = regexp.MustCompile(`(?i)(` + pipeToExecutor + `|` + riskyFlags + `)`)
+
+var linkRe = regexp.MustCompile(`(?i)\bhttps?://[^\s"'<>]+`)

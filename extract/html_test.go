@@ -73,6 +73,13 @@ func TestTestPagesMatchExtensionResults(t *testing.T) {
 		{page: "02-job-applicant.html", verdict: "dangerous", highCount: 5},
 		{page: "03-newsletter.html", verdict: "dangerous", highCount: 1},
 		{page: "04-clean.html", verdict: "clean", highCount: 0},
+		{
+			page: "05-library-docs.html", verdict: "dangerous", highCount: 2,
+			wantReasons: map[string]string{
+				"packages.yamlfast.example": "color-matches-background",
+				"macos-setup.sh":            "offscreen",
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.page, func(t *testing.T) {

@@ -89,6 +89,8 @@ func analyzeSegment(seg Segment) []Finding {
 		}
 		loc := matched[0].re.FindStringIndex(readable)
 		findings = append(findings, newFinding("instruction-"+matched[0].id, severity, message+".", excerptAround(readable, loc)))
+	} else if s, ok := subtleSignal(seg, readable); ok {
+		findings = append(findings, newFinding(s.rule, s.severity, s.message, excerptAround(readable, s.loc)))
 	} else if seg.Hidden() && seg.Source == "text" && len([]rune(strings.TrimSpace(seg.Text))) >= longHiddenThreshold {
 		findings = append(findings, newFinding("hidden-text-block", SeverityLow,
 			describeLocation(seg)+" is a large block a human can't see.", excerptAround(seg.Text, nil)))
@@ -103,6 +105,74 @@ func analyzeSegment(seg Segment) []Finding {
 			"Bidirectional control characters make this text read differently than it displays.", excerptAround(seg.Text, nil)))
 	}
 	return findings
+}
+
+// Camouflage hides text by making it unreadable rather than by collapsing it
+// the way menus, tabs, and dialogs do, so legitimate pages rarely hide real
+// content this way. Off-screen positioning is weaker evidence on its own:
+// some sites still use it for screen-reader text, which is prose but never a
+// command or a link.
+var (
+	strongCamouflage = map[string]bool{"color-matches-background": true, "transparent-text": true, "tiny-font": true}
+	anyCamouflage    = map[string]bool{"color-matches-background": true, "transparent-text": true, "tiny-font": true, "offscreen": true}
+)
+
+// minCamouflagedRunes keeps short labels (a logo name swapped for an image)
+// from counting as camouflaged prose.
+const minCamouflagedRunes = 40
+
+type signal struct {
+	rule     string
+	severity Severity
+	message  string
+	loc      []int
+}
+
+func hasAny(reasons []string, set map[string]bool) bool {
+	for _, r := range reasons {
+		if set[r] {
+			return true
+		}
+	}
+	return false
+}
+
+// subtleSignal catches injections with no telltale wording: no "ignore
+// previous instructions", nothing addressed to an AI. What gives them away is
+// how the text is hidden and what it carries. A command or link camouflaged
+// from people is aimed at whatever reads the page without seeing it.
+func subtleSignal(seg Segment, text string) (signal, bool) {
+	if seg.Source != "text" || !seg.Hidden() {
+		return signal{}, false
+	}
+	where := describeLocation(seg)
+	camouflaged := hasAny(seg.HiddenReasons, anyCamouflage)
+
+	if loc := commandRe.FindStringIndex(text); loc != nil {
+		if camouflaged {
+			return signal{"camouflaged-command", SeverityHigh,
+				where + " contains a command to run. People can't see it, but AI agents read it and may carry it out.", loc}, true
+		}
+		// Hidden tabs on documentation sites legitimately contain install
+		// commands, so collapsed content is only flagged for risky ones.
+		if loc := riskyCommandRe.FindStringIndex(text); loc != nil {
+			return signal{"hidden-risky-command", SeverityMedium,
+				where + " contains a risky command (a download piped to a shell, or software from a non-default source). Hidden tabs can be legitimate; verify it before running.", loc}, true
+		}
+		return signal{}, false
+	}
+	if !camouflaged {
+		return signal{}, false
+	}
+	if loc := linkRe.FindStringIndex(text); loc != nil {
+		return signal{"camouflaged-link", SeverityMedium,
+			where + " contains a link that people can't see but AI agents read.", loc}, true
+	}
+	if hasAny(seg.HiddenReasons, strongCamouflage) && len([]rune(strings.TrimSpace(text))) >= minCamouflagedRunes {
+		return signal{"camouflaged-text", SeverityMedium,
+			where + " is readable by AI agents but camouflaged from people.", nil}, true
+	}
+	return signal{}, false
 }
 
 // describeLocation names where a segment lives, e.g. "Hidden text (display:none)".

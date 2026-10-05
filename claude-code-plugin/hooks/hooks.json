@@ -7,8 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/trip-wire",
-            "args": ["hook", "claude-code"],
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/trip-wire\" hook claude-code",
             "timeout": 30
           }
         ]
@@ -20,8 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/bin/trip-wire",
-            "args": ["hook", "claude-code"],
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/trip-wire\" hook claude-code",
             "timeout": 30
           }
         ]

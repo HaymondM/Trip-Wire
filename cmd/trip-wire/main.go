@@ -150,8 +150,24 @@ func load(source string, stdin io.Reader, timeout time.Duration) ([]byte, string
 	return body, sniff(body, ""), err
 }
 
+// statusError is a non-2xx response.
+type statusError struct {
+	target string
+	code   int
+	status string
+}
+
+func (e *statusError) Error() string {
+	return fmt.Sprintf("fetching %s: %s", e.target, e.status)
+}
+
+// fetch is the CLI's fetch: the user named the URL explicitly, so local and
+// private addresses (like a test server on localhost) are allowed.
 func fetch(target string, timeout time.Duration) ([]byte, string, error) {
-	client := &http.Client{Timeout: timeout}
+	return fetchWith(&http.Client{Timeout: timeout}, target)
+}
+
+func fetchWith(client *http.Client, target string) ([]byte, string, error) {
 	req, err := http.NewRequest(http.MethodGet, target, nil)
 	if err != nil {
 		return nil, "", err
@@ -163,7 +179,7 @@ func fetch(target string, timeout time.Duration) ([]byte, string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, "", fmt.Errorf("fetching %s: %s", target, resp.Status)
+		return nil, "", &statusError{target: target, code: resp.StatusCode, status: resp.Status}
 	}
 	body, err := readLimited(resp.Body)
 	return body, sniff(body, resp.Header.Get("Content-Type")), err

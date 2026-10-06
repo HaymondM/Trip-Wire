@@ -95,6 +95,13 @@ clean page that should score zero. Serve them with
 `python3 -m http.server 8765` from the repo root and open
 http://localhost:8765/testpages/.
 
+**Live before-and-after demo:** `demo/demo.sh before` runs Claude Code (Haiku)
+with Trip Wire off on a rigged documentation page, and `demo/demo.sh after`
+runs the same task with it on. Run `demo/demo.sh check` first, and see
+[demo/DEMO_SCRIPT.md](demo/DEMO_SCRIPT.md) for the full walkthrough. Everything
+stays local, and every attacker address on the page is an unresolvable `.example`
+domain.
+
 ## Privacy and permissions
 
 - **Extension:** reads only pages you explicitly ask it to scan (`activeTab`),
@@ -116,6 +123,7 @@ http://localhost:8765/testpages/.
 | `claude-code-plugin/` | Claude Code plugin manifest, hooks, and launcher |
 | `.claude-plugin/` | Marketplace file that lets Claude Code install the plugin |
 | `testpages/` | Attack examples and a clean control page |
+| `demo/` | Live before-and-after launcher and the demo script |
 
 ## Known limits
 

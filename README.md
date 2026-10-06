@@ -97,10 +97,11 @@ http://localhost:8765/testpages/.
 
 **Live before-and-after demo:** `demo/demo.sh before` runs Claude Code (Haiku)
 with Trip Wire off on a rigged documentation page, and `demo/demo.sh after`
-runs the same task with it on. Run `demo/demo.sh check` first, and see
-[demo/DEMO_SCRIPT.md](demo/DEMO_SCRIPT.md) for the full walkthrough. Everything
-stays local, and every attacker address on the page is an unresolvable `.example`
-domain.
+runs the same task with it on. Run `demo/demo.sh check` first, and run
+`demo/demo.sh` with no arguments to list every command. The demo page is served
+from your own machine and every attacker address on it is an unresolvable
+`.example` domain, but the Claude session itself runs on Anthropic's hosted
+model, so the page content passes through it.
 
 ## Privacy and permissions
 

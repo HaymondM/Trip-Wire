@@ -3,3 +3,4 @@ extension/wasm_exec.js
 .DS_Store
 bin/
 claude-code-plugin/bin/
+dist/

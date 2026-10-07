@@ -71,9 +71,14 @@ make build      # extension WASM engine, bin/trip-wire CLI, and the plugin binar
 make test       # Go tests for the engine, extractor, CLI, and hook
 ```
 
-**Chrome extension:** open `chrome://extensions`, turn on Developer mode,
-choose **Load unpacked**, and select the `extension/` folder. Click the Trip
-Wire toolbar icon on any page to scan it.
+**Chrome extension:** the quickest way is to download the
+`trip-wire-extension` zip from the
+[latest release](https://github.com/HaymondM/Trip-Wire/releases/latest) and
+unzip it. It's prebuilt, so you don't need Go. To build it yourself, run
+`make build` and use the `extension/` folder. Then open `chrome://extensions`,
+turn on Developer mode, choose **Load unpacked**, and select the unzipped (or
+`extension/`) folder. Click the Trip Wire toolbar icon on any page to scan it.
+`make release-extension` rebuilds the zip.
 
 **CLI:**
 
@@ -141,3 +146,8 @@ model, so the page content passes through it.
 - The plugin scans WebFetch pages with its own request, so a server that shows
   different content to different clients could show Trip Wire a clean page.
 - Files read with Claude's Read tool aren't scanned yet.
+
+## License and security
+
+Trip Wire is MIT licensed; see [LICENSE](LICENSE). To report a vulnerability,
+see [SECURITY.md](SECURITY.md).

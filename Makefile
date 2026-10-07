@@ -5,7 +5,10 @@ CLAUDE ?= claude
 
 RSVG ?= rsvg-convert
 
-.PHONY: build wasm cli plugin install-plugin uninstall-plugin icons test smoke
+EXT_VERSION := $(shell python3 -c "import json; print(json.load(open('extension/manifest.json'))['version'])")
+EXT_ZIP := dist/trip-wire-extension-v$(EXT_VERSION).zip
+
+.PHONY: build wasm cli plugin install-plugin uninstall-plugin icons release-extension test smoke
 
 build: wasm cli plugin
 
@@ -39,6 +42,16 @@ icons:
 	$(RSVG) -w 32 -h 32 assets/icon-small.svg -o extension/icons/icon-32.png
 	$(RSVG) -w 48 -h 48 assets/icon.svg -o extension/icons/icon-48.png
 	$(RSVG) -w 128 -h 128 assets/icon.svg -o extension/icons/icon-128.png
+
+# Builds a ready-to-load extension zip for a GitHub release: the engine is
+# compiled in, so nobody needs Go to try it. Unzip it, then use Load unpacked.
+release-extension: wasm
+	rm -rf dist/trip-wire-extension "$(EXT_ZIP)"
+	mkdir -p dist/trip-wire-extension
+	cp -R extension/. dist/trip-wire-extension/
+	cd dist && zip -qr "$(notdir $(EXT_ZIP))" trip-wire-extension -x '*.DS_Store'
+	rm -rf dist/trip-wire-extension
+	@echo "Built $(EXT_ZIP)"
 
 test:
 	$(GO) test ./...

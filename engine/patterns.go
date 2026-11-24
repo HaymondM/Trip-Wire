@@ -29,7 +29,7 @@ var instructionPatterns = []instructionPattern{
 	{
 		id:          "fake-system-marker",
 		description: "imitates chat-format or system-prompt markers",
-		re:          regexp.MustCompile(`(?i)(<\|im_start\|>|<\|im_end\|>|<\|system\|>|\[/?INST\]|<<SYS>>|###\s*(system|instruction)|\bsystem prompt\b|(^|\n)\s*(system|assistant)\s*:)`),
+		re:          regexp.MustCompile(`(?i)(<\|im_start\|>|<\|im_end\|>|<\|system\|>|\[/?INST\]|<<SYS>>|###\s*(system|instruction)\s*:|\bsystem prompt\b|(^|\n)\s*(system|assistant)\s*:)`),
 	},
 	{
 		id:          "conceal-from-user",

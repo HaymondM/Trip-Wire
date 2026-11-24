@@ -68,6 +68,14 @@ func isAgentInstructionFile(p string) bool {
 	return false
 }
 
+// forAgentFile tunes a report for an agent instruction file. These files
+// exist to talk to an AI, so visible wording that addresses one or gives it a
+// role is expected; hidden text, invisible characters, override and conceal
+// wording, exfiltration and risky commands still count.
+func forAgentFile(r engine.Report) engine.Report {
+	return engine.WithoutVisible(r, "addresses-ai", "role-reassignment")
+}
+
 // afterRead scans agent instruction files that Claude reads. Dangerous content
 // is replaced in the tool's own response shape; if the shape isn't recognized,
 // Claude still gets the warning as added context.
@@ -82,7 +90,7 @@ func afterRead(in hookInput) *hookOutput {
 	if err := json.Unmarshal(in.ToolInput, &input); err != nil || !isAgentInstructionFile(input.FilePath) {
 		return nil
 	}
-	report, ok := worstReport(collectStrings(in.ToolResponse))
+	report, ok := worstReportWith(collectStrings(in.ToolResponse), forAgentFile)
 	if !ok {
 		return nil
 	}
@@ -239,7 +247,7 @@ func scanAgentFilesCommand(args []string, stdout, stderr io.Writer) int {
 			// Refuse rather than skip: an unscanned file must not pass as clean.
 			return fmt.Errorf("%s: %w", p, err)
 		}
-		report, found := worstReport([]string{string(body)})
+		report, found := worstReportWith([]string{string(body)}, forAgentFile)
 		if !found {
 			report = engine.Report{Verdict: "clean", Findings: []engine.Finding{}}
 		}

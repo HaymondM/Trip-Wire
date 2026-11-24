@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/HaymondM/Trip-Wire/engine"
+	"github.com/HaymondM/Trip-Wire/extract"
 )
 
 // Claude Code hook protocol: https://code.claude.com/docs/en/hooks
@@ -178,9 +179,18 @@ func afterBash(in hookInput) *hookOutput {
 // containing tags is scanned both as plain text and as HTML, since hidden-text
 // detection only works on HTML and HTML parsing can swallow text like "a<b".
 func worstReport(texts []string) (engine.Report, bool) {
+	return worstReportWith(texts, nil)
+}
+
+// worstReportWith is worstReport with adjust applied to each candidate report
+// before comparing, so context-specific tuning can't pick the wrong pass.
+func worstReportWith(texts []string, adjust func(engine.Report) engine.Report) (engine.Report, bool) {
 	var worst engine.Report
 	found := false
 	consider := func(r engine.Report, err error) {
+		if err == nil && adjust != nil {
+			r = adjust(r)
+		}
 		if err == nil && (!found || r.Score > worst.Score) {
 			worst, found = r, true
 		}
@@ -190,7 +200,9 @@ func worstReport(texts []string) (engine.Report, bool) {
 			continue
 		}
 		consider(analyze([]byte(text), "text/plain"))
-		if markupRe.MatchString(text) {
+		// Source code with HTML only inside string literals (test fixtures)
+		// isn't a page; parsing it as HTML would invent hidden elements.
+		if _, isCode := extract.Code(text); markupRe.MatchString(text) && !isCode {
 			consider(analyze([]byte(text), "text/html"))
 		}
 	}

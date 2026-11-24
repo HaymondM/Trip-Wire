@@ -26,6 +26,19 @@ for agent instruction files, the files agents treat as standing orders rather
 than data. Scanning every file would flag ordinary code (Trip Wire's own
 detection patterns, for one).
 
+Output that looks like source code (a `cat`, `grep` or `git diff` of code) is
+scanned with its string literals blanked: test fixtures and detection patterns
+are data, not instructions. Comments and docstrings are still scanned as
+written, since a planted comment is how an injection hides in a repo, and
+invisible or bidi characters inside literals still count. Text with HTML tags
+outside string literals is treated as a page, never as code.
+
+Agent instruction files exist to talk to an AI, so in them, plain-sight wording
+that addresses an AI or gives it a role ("If you are an AI agent working
+here…") isn't flagged. Hidden text, HTML comments, invisible characters,
+"ignore previous instructions" wording, exfiltration and risky commands still
+are.
+
 Messages to Claude contain only Trip Wire's own descriptions of what it found,
 never the hidden text itself, so the warning can't carry the injection with it.
 The plugin never auto-approves a tool call: it either blocks it or leaves the

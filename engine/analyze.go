@@ -62,7 +62,11 @@ func analyzeSegment(seg Segment) []Finding {
 
 	// Match against what a reader effectively sees, so an invisible character
 	// dropped inside a keyword ("instruc<ZWSP>tions") can't defeat the patterns.
-	readable := stripInvisible(seg.Text)
+	matchSource := seg.Text
+	if seg.MatchText != nil {
+		matchSource = *seg.MatchText
+	}
+	readable := stripInvisible(matchSource)
 
 	if decoded := decodeTagSmuggling(seg.Text); decoded != "" {
 		message := "Invisible Unicode tag characters smuggle hidden text into this passage"
@@ -84,11 +88,15 @@ func analyzeSegment(seg Segment) []Finding {
 		if extra := len(matched) - 1; extra > 0 {
 			message += fmt.Sprintf(" (+%d more injection pattern%s)", extra, plural(extra))
 		}
-		if readable != seg.Text && len(matchInstructions(seg.Text)) < len(matched) {
+		if readable != matchSource && len(matchInstructions(matchSource)) < len(matched) {
 			message += ", with keywords split by invisible characters"
 		}
 		loc := matched[0].re.FindStringIndex(readable)
-		findings = append(findings, newFinding("instruction-"+matched[0].id, severity, message+".", excerptAround(readable, loc)))
+		f := newFinding("instruction-"+matched[0].id, severity, message+".", excerptAround(readable, loc))
+		for _, m := range matched {
+			f.MatchedRules = append(f.MatchedRules, "instruction-"+m.id)
+		}
+		findings = append(findings, f)
 	} else if s, ok := subtleSignal(seg, readable); ok {
 		findings = append(findings, newFinding(s.rule, s.severity, s.message, excerptAround(readable, s.loc)))
 	} else if seg.Hidden() && seg.Source == "text" && len([]rune(strings.TrimSpace(seg.Text))) >= longHiddenThreshold {

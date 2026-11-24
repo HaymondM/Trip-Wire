@@ -12,6 +12,10 @@ type Segment struct {
 	Source        string   `json:"source"`
 	Tag           string   `json:"tag"`
 	HiddenReasons []string `json:"hiddenReasons"`
+	// MatchText, when set, is what instruction patterns are matched against
+	// instead of Text: source code with its string literals blanked. Unicode
+	// checks always use Text, so nothing invisible can be blanked away.
+	MatchText *string `json:"matchText,omitempty"`
 }
 
 // Hidden reports whether a human viewing the rendered page can't see this text.
@@ -35,6 +39,9 @@ type Finding struct {
 	Excerpt       string   `json:"excerpt"`
 	Decoded       string   `json:"decoded,omitempty"`
 	HiddenReasons []string `json:"hiddenReasons,omitempty"`
+	// MatchedRules lists every instruction pattern that matched this
+	// passage; RuleID names only the first.
+	MatchedRules []string `json:"matchedRules,omitempty"`
 }
 
 type Stats struct {

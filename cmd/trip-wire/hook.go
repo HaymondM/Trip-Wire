@@ -46,6 +46,9 @@ type hookSpecificOutput struct {
 	// UpdatedToolOutput replaces what Claude receives from the tool. It must
 	// match the shape of the tool's own output or Claude Code ignores it.
 	UpdatedToolOutput any `json:"updatedToolOutput,omitempty"`
+	// UpdatedMCPToolOutput is the MCP-specific form of the same replacement,
+	// set alongside UpdatedToolOutput for MCP tools.
+	UpdatedMCPToolOutput any `json:"updatedMCPToolOutput,omitempty"`
 }
 
 type hookOutput struct {
@@ -69,6 +72,10 @@ func runClaudeCodeHook(stdin io.Reader, stdout, stderr io.Writer) int {
 		out = beforeWebFetch(in)
 	case in.HookEventName == "PostToolUse" && in.ToolName == "Bash":
 		out = afterBash(in)
+	case in.HookEventName == "PostToolUse" && in.ToolName == "Read":
+		out = afterRead(in)
+	case in.HookEventName == "PostToolUse" && strings.HasPrefix(in.ToolName, "mcp__"):
+		out = afterMCP(in)
 	}
 	if out == nil {
 		return 0 // nothing to say; Claude Code proceeds normally

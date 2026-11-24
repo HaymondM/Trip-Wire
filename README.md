@@ -29,8 +29,8 @@
 | | Who it protects | What it does |
 |---|---|---|
 | **Chrome extension** | You, browsing with an AI assistant | Scores the page and shows it the way an AI reads it, with hidden instructions revealed in place |
-| **CLI** | CI pipelines, scripts, anyone checking a URL | `trip-wire scan <url>` prints findings; the exit code lets a pipeline fail on dangerous pages |
-| **Claude Code plugin** | AI agents that fetch the web themselves | Blocks WebFetch on dangerous pages and withholds dangerous Bash output (like `curl`) before Claude reads it |
+| **CLI** | CI pipelines, scripts, anyone checking a URL or repo | `trip-wire scan <url>` prints findings; `trip-wire scan-agent-files <dir>` checks a repo's `CLAUDE.md`, `AGENTS.md`, Cursor rules and skills; the exit code lets a pipeline fail on dangerous content |
+| **Claude Code plugin** | AI agents that fetch the web themselves | Blocks WebFetch on dangerous pages and withholds dangerous Bash output (like `curl`), MCP tool results, and agent instruction files before Claude reads them |
 
 ## What it detects
 
@@ -85,7 +85,16 @@ turn on Developer mode, choose **Load unpacked**, and select the unzipped (or
 ```bash
 bin/trip-wire scan https://example.com
 bin/trip-wire scan --json --fail-on suspicious page.html
+bin/trip-wire scan-agent-files path/to/cloned-repo
 ```
+
+`scan-agent-files` walks a directory (skipping `.git` and `node_modules`) and
+scans every file a coding agent treats as instructions: `CLAUDE.md`,
+`AGENTS.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`,
+`copilot-instructions.md`, `SKILL.md`, and markdown under `.cursor/rules/`,
+`.claude/commands/`, `.claude/agents/`, `.claude/skills/` and
+`.github/instructions/`. Run it on a repo before letting an agent work in it,
+or in CI so a poisoned instruction file can't be merged.
 
 Exit codes: `0` below the `--fail-on` threshold (default `dangerous`), `1` at
 or above it, `2` on error.

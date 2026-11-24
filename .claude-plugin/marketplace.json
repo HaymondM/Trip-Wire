@@ -8,7 +8,7 @@
     {
       "name": "trip-wire",
       "source": "./claude-code-plugin",
-      "description": "Scans web content for hidden prompt injection before Claude reads it. Blocks WebFetch on dangerous pages and withholds dangerous Bash output."
+      "description": "Scans web content, MCP tool results and agent instruction files for hidden prompt injection before Claude reads them. Blocks WebFetch on dangerous pages and withholds dangerous Bash output, MCP results and instruction files."
     }
   ]
 }

@@ -9,6 +9,9 @@ Claude reads it. It uses the same Go engine as the Trip Wire Chrome extension.
 | Claude calls **WebFetch** on a suspicious page | Lets your normal permission flow run, with a warning attached for Claude |
 | Any **Bash** command returns dangerous content | Withholds the output from Claude |
 | A Bash command returns suspicious content | Passes it through with a warning attached for Claude |
+| Any **MCP tool** (`mcp__*`) returns dangerous content | Withholds the result from Claude and attaches a warning |
+| Claude **Reads** an agent instruction file (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `SKILL.md`, `.cursor/rules/*`, `.claude/commands/*`, …) with dangerous content | Withholds the file's content and attaches a warning |
+| An MCP result or agent instruction file is suspicious | Passes it through with a warning attached for Claude |
 | Trip Wire can't scan a page (network error, etc.) | Doesn't block; tells Claude the content is unverified |
 
 Bash output is judged by content, not by which command produced it. A list of
@@ -16,6 +19,12 @@ Bash output is judged by content, not by which command produced it. A list of
 downloaded earlier and read with `cat`), so every command's output is scanned.
 stdout and stderr are scanned separately, so curl's progress meter can't make
 an HTML page look like plain text.
+
+MCP results are scanned the same way, whatever the server: tickets, docs, chat
+messages and web pages all come back through MCP tools. Read is scanned only
+for agent instruction files, the files agents treat as standing orders rather
+than data. Scanning every file would flag ordinary code (Trip Wire's own
+detection patterns, for one).
 
 Messages to Claude contain only Trip Wire's own descriptions of what it found,
 never the hidden text itself, so the warning can't carry the injection with it.
@@ -27,6 +36,14 @@ with an object in Bash's own shape. A PostToolUse `decision: "block"` does
 *not* withhold anything: verified live on Claude Code 2.1.285, the original
 output still reached Claude. The WebFetch block uses a PreToolUse `deny`, also
 verified live.
+
+MCP results and Read output are withheld the same way, in each tool's own
+shape (MCP content blocks, and Read's `file.content`). MCP replacements also
+set `updatedMCPToolOutput`. Both were verified live on Claude Code 2.1.285
+with a headless session: Claude received only Trip Wire's notice, and with the
+plugin disabled the same file and MCP result reached Claude in full. The
+warning is also attached as context, so if a later Claude Code version ignores
+the replacement, Claude is still told not to follow the content.
 
 ## Install
 
@@ -71,6 +88,10 @@ instructions aimed at AI agents. WebFetch can't reach localhost, so to see the
 WebFetch block, point Claude at a public page.
 
 ## Limits
+
+- **Claude Code loads the project's own `CLAUDE.md` at startup, without a
+  Read**, so the hook never sees it. Before opening a repo you didn't write in
+  an agent, run `trip-wire scan-agent-files <repo>`.
 
 - **WebFetch is scanned with a separate request, made before you approve the
   fetch.** It has to happen first: WebFetch hands the raw page to a summarizing

@@ -3,6 +3,8 @@
 //
 //	trip-wire scan <url | file | ->   scan and report; exit 0 below the
 //	                                  --fail-on threshold, 1 at or above it, 2 on error
+//	trip-wire scan-agent-files [dir]  scan CLAUDE.md, AGENTS.md, Cursor rules, skills
+//	                                  and similar files under dir; same exit codes
 //	trip-wire hook claude-code        run as a Claude Code hook (JSON on stdin/stdout)
 package main
 
@@ -48,12 +50,15 @@ func main() {
 
 const usage = `usage:
   trip-wire scan [--json] [--fail-on dangerous|suspicious|never] [--timeout 15s] <url | file | ->
+  trip-wire scan-agent-files [--json] [--fail-on dangerous|suspicious|never] [dir]
   trip-wire hook claude-code`
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	switch {
 	case len(args) >= 1 && args[0] == "scan":
 		return scanCommand(args, stdin, stdout, stderr)
+	case len(args) >= 1 && args[0] == "scan-agent-files":
+		return scanAgentFilesCommand(args, stdout, stderr)
 	case len(args) == 2 && args[0] == "hook" && args[1] == "claude-code":
 		return runClaudeCodeHook(stdin, stdout, stderr)
 	}

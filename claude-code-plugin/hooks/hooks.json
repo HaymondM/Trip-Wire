@@ -1,5 +1,5 @@
 {
-  "description": "Trip Wire: scan web content for hidden prompt injection before Claude reads it",
+  "description": "Trip Wire: scan web content, MCP tool results and agent instruction files for hidden prompt injection before Claude acts on them",
   "hooks": {
     "PreToolUse": [
       {
@@ -15,7 +15,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Read|mcp__.*",
         "hooks": [
           {
             "type": "command",

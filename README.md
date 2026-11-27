@@ -69,6 +69,7 @@ Requires Go 1.27+ and `make`. Build everything from the repo root:
 ```bash
 make build      # extension WASM engine, bin/trip-wire CLI, and the plugin binary
 make test       # Go tests for the engine, extractor, CLI, and hook
+make quality    # labeled detection regression metrics and latency benchmark
 ```
 
 **Chrome extension:** the quickest way is to download the
@@ -112,7 +113,10 @@ scans every file a coding agent treats as instructions: `CLAUDE.md`,
 `copilot-instructions.md`, `SKILL.md`, and markdown under `.cursor/rules/`,
 `.claude/commands/`, `.claude/agents/`, `.claude/skills/` and
 `.github/instructions/`. Run it on a repo before letting an agent work in it,
-or in CI so a poisoned instruction file can't be merged.
+or in CI so a poisoned instruction file can't be merged. To avoid silently
+passing unscanned instructions, the command errors on instruction-file symlinks,
+symlinked directories (other than the skipped directories), and unreadable
+symlink targets or non-regular instruction files.
 
 Exit codes: `0` below the `--fail-on` threshold (default `dangerous`), `1` at
 or above it, `2` on error.
@@ -125,8 +129,24 @@ make install-plugin
 
 That installs it for every Claude Code session, in the terminal and in the
 desktop app's Code tab. See [claude-code-plugin/README.md](claude-code-plugin/README.md)
-for uninstalling, one-off use, what the hooks do, and how they were verified
-against a live Claude Code session.
+for uninstalling, one-off use, policy and audit configuration, and the limits
+of hook enforcement.
+
+**Enterprise pilot controls:** the Claude Code hook can load an
+administrator-managed policy through `TRIP_WIRE_POLICY`. It supports configurable
+block/warn thresholds, strict handling of supported scan failures, time-limited
+exceptions scoped to exact input and content fingerprints, and local JSONL
+audit events without raw content. Strict mode blocks all WebFetch calls because
+a separate pre-fetch cannot verify what WebFetch actually sends to its model.
+See the [policy guide](claude-code-plugin/README.md#policy-and-auditing) before
+deployment: hooks and heuristic detection are not a complete security boundary.
+
+`make quality` measures detection, default-threshold blocking, false positives,
+and latency on a small synthetic labeled corpus. The corpus deliberately includes
+known misses and benign false positives; its rates are regression signals, not
+estimates of real-world protection. CI runs it along with the tests, a simulated
+hook-protocol check, and the WebAssembly smoke test. Latency measures in-process
+scanning only, not network requests, hook startup, or audit writes.
 
 **Test pages:** `testpages/` has realistic examples of each attack, plus a
 clean page that should score zero. Serve them with
@@ -147,8 +167,9 @@ model, so the page content passes through it.
   and page content never leaves your browser.
 - **Plugin:** never auto-approves a tool call. It either blocks a call or
   leaves the decision to your normal permission settings. What it tells Claude
-  is only Trip Wire's own description of the findings, never the hidden text
-  itself.
+  is only Trip Wire's own rule identifiers, never the hidden text itself.
+  Optional audit logs omit raw input and content, but their fingerprints can
+  still be sensitive and should be protected.
 
 ## Repository layout
 
@@ -172,7 +193,10 @@ model, so the page content passes through it.
   still applies.
 - The plugin scans WebFetch pages with its own request, so a server that shows
   different content to different clients could show Trip Wire a clean page.
-- Files read with Claude's Read tool aren't scanned yet.
+  Strict policy blocks WebFetch instead.
+- By default, the Read hook scans only agent instruction files. Strict policy
+  also scans ordinary text reads, subject to the hook-protocol limits described
+  in the [plugin guide](claude-code-plugin/README.md#limits).
 
 ## License and security
 

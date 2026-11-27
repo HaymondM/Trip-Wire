@@ -86,7 +86,25 @@ turn on Developer mode, choose **Load unpacked**, and select the unzipped (or
 bin/trip-wire scan https://example.com
 bin/trip-wire scan --json --fail-on suspicious page.html
 bin/trip-wire scan-agent-files path/to/cloned-repo
+bin/trip-wire scan --explain page.html
+bin/trip-wire scan-agent-files --json --explain path/to/cloned-repo
 ```
+
+**Auditing findings:** add `--explain` to either scan command to see each
+finding's rule ID, matched instruction rules, hiding techniques, and the
+full extracted text segment with its source (text, comment, metadata, or
+attribute) and HTML tag when available. Text is quoted so invisible characters
+and control characters can be inspected without rendering them in your terminal.
+With `--json --explain`, a top-level `segments` array (per file for
+`scan-agent-files`) contains only segments referenced by findings; join
+`report.findings[].segmentId` to `segments[].id`. IDs belong to that scan,
+not to source line numbers or stable identifiers across scans. Extracted text
+has normalized whitespace and HTML entities decoded, so it is not a byte-for-byte
+copy of the input. Agent files are evaluated as plain text and, when appropriate,
+HTML; the evidence comes from the pass that produced the selected report.
+Explain mode doesn't change scores or exit codes. Reports contain untrusted
+instructions: review them as evidence, don't execute them or feed them to an
+AI agent as instructions. Plugin hook output still withholds attacker text.
 
 `scan-agent-files` walks a directory (skipping `.git` and `node_modules`) and
 scans every file a coding agent treats as instructions: `CLAUDE.md`,

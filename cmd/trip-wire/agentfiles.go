@@ -205,6 +205,7 @@ func scanAgentFilesCommand(args []string, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("scan-agent-files", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	asJSON := flags.Bool("json", false, "print the report as JSON")
+	explain := flags.Bool("explain", false, "include matched rules, hiding techniques, and full extracted segments for findings")
 	failOn := flags.String("fail-on", "dangerous", "exit 1 when any file's verdict is at least this severe: dangerous, suspicious, or never")
 	if err := flags.Parse(args[1:]); err != nil {
 		return exitError
@@ -247,11 +248,15 @@ func scanAgentFilesCommand(args []string, stdout, stderr io.Writer) int {
 			// Refuse rather than skip: an unscanned file must not pass as clean.
 			return fmt.Errorf("%s: %w", p, err)
 		}
-		report, found := worstReportWith([]string{string(body)}, forAgentFile)
+		report, segments, found := worstReportWithSegments([]string{string(body)}, forAgentFile)
 		if !found {
 			report = engine.Report{Verdict: "clean", Findings: []engine.Finding{}}
 		}
-		out.Files = append(out.Files, result{Source: p, ContentType: "text/plain", Report: report})
+		res := result{Source: p, ContentType: "text/plain", Report: report}
+		if *explain {
+			res.Segments = findingSegments(report, segments)
+		}
+		out.Files = append(out.Files, res)
 		return nil
 	})
 	if err != nil {
@@ -293,7 +298,7 @@ func printAgentFiles(w io.Writer, out agentFilesResult, counts map[string]int) {
 	fmt.Fprintf(w, "Trip Wire: scanned %d agent instruction file%s under %s: %d dangerous, %d suspicious, %d clean\n",
 		len(out.Files), plural(len(out.Files)), out.Root, counts["dangerous"], counts["suspicious"], counts["clean"])
 	for _, r := range out.Files {
-		if r.Report.Verdict == "clean" {
+		if r.Report.Verdict == "clean" && len(r.Segments) == 0 {
 			fmt.Fprintf(w, "\nCLEAN  %s\n", r.Source)
 			continue
 		}

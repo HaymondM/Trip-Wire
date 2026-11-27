@@ -185,28 +185,40 @@ func worstReport(texts []string) (engine.Report, bool) {
 // worstReportWith is worstReport with adjust applied to each candidate report
 // before comparing, so context-specific tuning can't pick the wrong pass.
 func worstReportWith(texts []string, adjust func(engine.Report) engine.Report) (engine.Report, bool) {
+	report, _, found := worstReportWithSegments(texts, adjust)
+	return report, found
+}
+
+func worstReportWithSegments(texts []string, adjust func(engine.Report) engine.Report) (engine.Report, []engine.Segment, bool) {
 	var worst engine.Report
+	var worstSegments []engine.Segment
 	found := false
-	consider := func(r engine.Report, err error) {
-		if err == nil && adjust != nil {
+	consider := func(text, contentType string) {
+		segments, err := segmentsFor([]byte(text), contentType)
+		if err != nil {
+			return
+		}
+		r := engine.Analyze(segments)
+		if adjust != nil {
 			r = adjust(r)
 		}
-		if err == nil && (!found || r.Score > worst.Score) {
+		if !found || r.Score > worst.Score {
 			worst, found = r, true
+			worstSegments = segments
 		}
 	}
 	for _, text := range texts {
 		if strings.TrimSpace(text) == "" {
 			continue
 		}
-		consider(analyze([]byte(text), "text/plain"))
+		consider(text, "text/plain")
 		// Source code with HTML only inside string literals (test fixtures)
 		// isn't a page; parsing it as HTML would invent hidden elements.
 		if _, isCode := extract.Code(text); markupRe.MatchString(text) && !isCode {
-			consider(analyze([]byte(text), "text/html"))
+			consider(text, "text/html")
 		}
 	}
-	return worst, found
+	return worst, worstSegments, found
 }
 
 // replaceOutput builds a replacement in the same shape as the tool's response,

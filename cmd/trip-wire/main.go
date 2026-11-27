@@ -236,7 +236,7 @@ func printHuman(w io.Writer, res result) {
 			}
 			fmt.Fprintf(w, "    segment %d: %s", seg.ID, seg.Source)
 			if seg.Tag != "" {
-				fmt.Fprintf(w, " in <%s>", strings.ToLower(seg.Tag))
+				fmt.Fprintf(w, " in <%q>", strings.ToLower(seg.Tag))
 			}
 			fmt.Fprintln(w)
 			if len(seg.HiddenReasons) > 0 {

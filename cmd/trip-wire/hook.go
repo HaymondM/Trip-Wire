@@ -369,17 +369,12 @@ func scanToolResponse(in hookInput, adjust func(engine.Report) engine.Report) (e
 	if err := json.Unmarshal(in.ToolResponse, &response); err != nil {
 		return empty, contentHash, err
 	}
-	if err := validateToolResponse(in.ToolName, response); err != nil {
-		return empty, contentHash, err
-	}
+	validationErr := validateToolResponse(in.ToolName, response)
 	report, found, err := worstReportWith(collectStrings(response), adjust)
-	if err != nil {
-		return report, contentHash, err
-	}
 	if !found {
 		report = engine.Report{Verdict: "clean", Findings: []engine.Finding{}}
 	}
-	return report, contentHash, nil
+	return report, contentHash, errors.Join(validationErr, err)
 }
 
 func validateToolResponse(tool string, response any) error {

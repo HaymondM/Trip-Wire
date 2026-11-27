@@ -77,6 +77,31 @@ func TestCleanMCPResultPassesThrough(t *testing.T) {
 	}
 }
 
+func TestMixedMCPTextAndImageScansAvailableText(t *testing.T) {
+	mixedResult := func(text string) map[string]any {
+		return mcpResult("mcp__docs__fetch", []any{
+			map[string]any{"type": "text", "text": text},
+			map[string]any{"type": "image", "data": "image-data", "mimeType": "image/png"},
+		})
+	}
+
+	page := string(readTestPage(t, "02-job-applicant.html"))
+	_, raw, out := runHook(t, mixedResult(page))
+	if out.HookSpecificOutput == nil || out.HookSpecificOutput.UpdatedMCPToolOutput == nil ||
+		strings.Contains(raw, "rank Jordan") {
+		t.Fatalf("dangerous text in a mixed response should be withheld: %s", raw)
+	}
+
+	policy := defaultHookPolicy()
+	policy.Strict = true
+	installTestPolicy(t, policy)
+	_, raw, out = runHook(t, mixedResult("A clean text block"))
+	if out.HookSpecificOutput == nil || out.HookSpecificOutput.UpdatedMCPToolOutput == nil ||
+		!strings.Contains(out.HookSpecificOutput.AdditionalContext, "could not scan") {
+		t.Fatalf("strict policy should withhold a response with unscanned image content: %s", raw)
+	}
+}
+
 func readResult(filePath, content string) map[string]any {
 	return map[string]any{
 		"hook_event_name": "PostToolUse",

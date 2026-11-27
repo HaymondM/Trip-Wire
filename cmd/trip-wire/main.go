@@ -39,9 +39,10 @@ const (
 var verdictRank = map[string]int{"clean": 0, "suspicious": 1, "dangerous": 2}
 
 type result struct {
-	Source      string        `json:"source"`
-	ContentType string        `json:"contentType"`
-	Report      engine.Report `json:"report"`
+	Source      string           `json:"source"`
+	ContentType string           `json:"contentType"`
+	Report      engine.Report    `json:"report"`
+	Segments    []engine.Segment `json:"segments,omitempty"`
 }
 
 func main() {
@@ -49,8 +50,8 @@ func main() {
 }
 
 const usage = `usage:
-  trip-wire scan [--json] [--fail-on dangerous|suspicious|never] [--timeout 15s] <url | file | ->
-  trip-wire scan-agent-files [--json] [--fail-on dangerous|suspicious|never] [dir]
+  trip-wire scan [--json] [--explain] [--fail-on dangerous|suspicious|never] [--timeout 15s] <url | file | ->
+  trip-wire scan-agent-files [--json] [--explain] [--fail-on dangerous|suspicious|never] [dir]
   trip-wire hook claude-code`
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -79,6 +80,7 @@ func scanCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("scan", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	asJSON := fs.Bool("json", false, "print the report as JSON")
+	explain := fs.Bool("explain", false, "include matched rules, hiding techniques, and full extracted segments for findings")
 	failOn := fs.String("fail-on", "dangerous", "exit 1 when the verdict is at least this severe: dangerous, suspicious, or never")
 	timeout := fs.Duration("timeout", 15*time.Second, "timeout for fetching a URL")
 	if err := fs.Parse(args[1:]); err != nil {
@@ -100,12 +102,16 @@ func scanCommand(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "trip-wire scan: %v\n", err)
 		return exitError
 	}
-	report, err := analyze(body, contentType)
+	segments, err := segmentsFor(body, contentType)
 	if err != nil {
 		fmt.Fprintf(stderr, "trip-wire scan: %v\n", err)
 		return exitError
 	}
+	report := engine.Analyze(segments)
 	res := result{Source: source, ContentType: contentType, Report: report}
+	if *explain {
+		res.Segments = findingSegments(report, segments)
+	}
 
 	if *asJSON {
 		enc := json.NewEncoder(stdout)
@@ -210,6 +216,10 @@ func segmentsFor(body []byte, contentType string) ([]engine.Segment, error) {
 
 func printHuman(w io.Writer, res result) {
 	r := res.Report
+	segments := make(map[int]engine.Segment, len(res.Segments))
+	for _, seg := range res.Segments {
+		segments[seg.ID] = seg
+	}
 	fmt.Fprintf(w, "Trip Wire: %s (score %d)  %s\n", strings.ToUpper(r.Verdict), r.Score, res.Source)
 	fmt.Fprintf(w, "%d finding%s · %d hidden of %d text segments\n", len(r.Findings), plural(len(r.Findings)), r.Stats.HiddenSegments, r.Stats.SegmentsScanned)
 	for _, f := range r.Findings {
@@ -219,7 +229,39 @@ func printHuman(w io.Writer, res result) {
 		} else if f.Excerpt != "" {
 			fmt.Fprintf(w, "    %q\n", f.Excerpt)
 		}
+		if seg, ok := segments[f.SegmentID]; ok {
+			fmt.Fprintf(w, "    rule: %s\n", f.RuleID)
+			if len(f.MatchedRules) > 0 {
+				fmt.Fprintf(w, "    matched rules: %s\n", strings.Join(f.MatchedRules, ", "))
+			}
+			fmt.Fprintf(w, "    segment %d: %s", seg.ID, seg.Source)
+			if seg.Tag != "" {
+				fmt.Fprintf(w, " in <%q>", strings.ToLower(seg.Tag))
+			}
+			fmt.Fprintln(w)
+			if len(seg.HiddenReasons) > 0 {
+				fmt.Fprintf(w, "    hiding techniques: %s\n", strings.Join(seg.HiddenReasons, ", "))
+			}
+			fmt.Fprintf(w, "    extracted text: %q\n", seg.Text)
+			if seg.MatchText != nil {
+				fmt.Fprintf(w, "    pattern-matching text: %q\n", *seg.MatchText)
+			}
+		}
 	}
+}
+
+func findingSegments(report engine.Report, segments []engine.Segment) []engine.Segment {
+	ids := make(map[int]bool, len(report.Findings))
+	for _, f := range report.Findings {
+		ids[f.SegmentID] = true
+	}
+	var evidence []engine.Segment
+	for _, seg := range segments {
+		if ids[seg.ID] {
+			evidence = append(evidence, seg)
+		}
+	}
+	return evidence
 }
 
 func plural(n int) string {

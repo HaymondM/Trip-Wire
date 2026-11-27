@@ -76,45 +76,30 @@ func forAgentFile(r engine.Report) engine.Report {
 	return engine.WithoutVisible(r, "addresses-ai", "role-reassignment")
 }
 
-// afterRead scans agent instruction files that Claude reads. Dangerous content
-// is replaced in the tool's own response shape; if the shape isn't recognized,
-// Claude still gets the warning as added context.
-//
 // Claude Code loads the project's own CLAUDE.md at startup without a Read, so
-// this hook can't see that one: run `trip-wire scan-agent-files` on a repo
-// before opening it in an agent.
-func afterRead(in hookInput) *hookOutput {
+// it must still be checked with scan-agent-files before opening a repository.
+func afterRead(in hookInput, policy hookPolicy) hookResult {
 	var input struct {
 		FilePath string `json:"file_path"`
 	}
-	if err := json.Unmarshal(in.ToolInput, &input); err != nil || !isAgentInstructionFile(input.FilePath) {
-		return nil
-	}
-	report, ok := worstReportWith(collectStrings(in.ToolResponse), forAgentFile)
-	if !ok {
-		return nil
-	}
-	source := "the agent instruction file " + truncate(input.FilePath, 160)
-	switch report.Verdict {
-	case "dangerous":
-		notice := describe("Trip Wire withheld this file", source, report)
-		out := &hookSpecificOutput{HookEventName: "PostToolUse", AdditionalContext: notice}
-		if replaced, ok := replaceReadOutput(in.ToolResponse, notice); ok {
-			out.UpdatedToolOutput = replaced
+	if err := json.Unmarshal(in.ToolInput, &input); err != nil || input.FilePath == "" {
+		if policy.Strict {
+			return scanError(in, policy, "")
 		}
-		return &hookOutput{HookSpecificOutput: out}
-	case "suspicious":
-		return &hookOutput{HookSpecificOutput: &hookSpecificOutput{
-			HookEventName:     "PostToolUse",
-			AdditionalContext: describe("Trip Wire warning", source, report),
-		}}
+		return hookResult{}
 	}
-	return nil
+	if isAgentInstructionFile(input.FilePath) {
+		return afterScannedTool(in, policy, forAgentFile)
+	}
+	if policy.Strict {
+		return afterScannedTool(in, policy, nil)
+	}
+	return hookResult{}
 }
 
 // replaceReadOutput swaps the file content in Read's response
 // ({type, file: {filePath, content, numLines, ...}}) for the notice.
-func replaceReadOutput(original json.RawMessage, notice string) (any, bool) {
+func replaceReadOutput(original json.RawMessage, filePath, notice string) (any, bool) {
 	var v any
 	if err := json.Unmarshal(original, &v); err != nil {
 		return nil, false
@@ -123,6 +108,9 @@ func replaceReadOutput(original json.RawMessage, notice string) (any, bool) {
 	case string:
 		return notice, true
 	case map[string]any:
+		if kind, exists := t["type"]; exists && kind != "text" {
+			return nil, false
+		}
 		file, ok := t["file"].(map[string]any)
 		if !ok {
 			return nil, false
@@ -130,65 +118,46 @@ func replaceReadOutput(original json.RawMessage, notice string) (any, bool) {
 		if _, ok := file["content"].(string); !ok {
 			return nil, false
 		}
-		file["content"] = notice
-		if _, ok := file["numLines"]; ok {
-			file["numLines"] = strings.Count(notice, "\n") + 1
+		cleanFile := map[string]any{"content": notice}
+		if filePath != "" {
+			cleanFile["filePath"] = filePath
 		}
-		return t, true
+		if _, ok := file["numLines"]; ok {
+			cleanFile["numLines"] = strings.Count(notice, "\n") + 1
+		}
+		for _, key := range []string{"startLine", "totalLines"} {
+			if value, ok := file[key].(float64); ok {
+				cleanFile[key] = value
+			}
+		}
+		return map[string]any{"type": "text", "file": cleanFile}, true
 	}
 	return nil, false
 }
 
-// afterMCP scans the result of every MCP tool call. MCP servers return
-// whatever their upstream source holds (tickets, docs, chat messages, web
-// pages), so their results get the same content-based scan as Bash output.
-func afterMCP(in hookInput) *hookOutput {
-	report, ok := worstReport(collectStrings(in.ToolResponse))
-	if !ok {
-		return nil
-	}
-	source := "the result of MCP tool " + truncate(in.ToolName, 120)
-	switch report.Verdict {
-	case "dangerous":
-		notice := describe("Trip Wire withheld this tool result", source, report)
-		replaced := replaceMCPOutput(in.ToolResponse, notice)
-		return &hookOutput{HookSpecificOutput: &hookSpecificOutput{
-			HookEventName:        "PostToolUse",
-			UpdatedToolOutput:    replaced,
-			UpdatedMCPToolOutput: replaced,
-			// Also sent as context, so Claude is warned even if a Claude Code
-			// version doesn't apply the replacement.
-			AdditionalContext: notice,
-		}}
-	case "suspicious":
-		return &hookOutput{HookSpecificOutput: &hookSpecificOutput{
-			HookEventName:     "PostToolUse",
-			AdditionalContext: describe("Trip Wire warning", source, report),
-		}}
-	}
-	return nil
-}
-
 // replaceMCPOutput builds a replacement in the shape of an MCP result: a list
 // of content blocks, an object with a content list, or a plain string.
-func replaceMCPOutput(original json.RawMessage, notice string) any {
+func replaceMCPOutput(original json.RawMessage, notice string) (any, bool) {
 	blocks := []any{map[string]any{"type": "text", "text": notice}}
 	var v any
 	if err := json.Unmarshal(original, &v); err != nil {
-		return notice
+		return nil, false
 	}
 	switch t := v.(type) {
 	case string:
-		return notice
+		return notice, true
+	case []any:
+		return blocks, true
 	case map[string]any:
-		if _, ok := t["content"]; ok {
-			t["content"] = blocks
-			// Structured results can carry the same injected text.
-			delete(t, "structuredContent")
-			return t
+		if _, ok := t["content"].([]any); ok {
+			clean := map[string]any{"content": blocks}
+			if isError, ok := t["isError"].(bool); ok {
+				clean["isError"] = isError
+			}
+			return clean, true
 		}
 	}
-	return blocks
+	return nil, false
 }
 
 // skippedDirs aren't walked by scan-agent-files.
@@ -229,14 +198,35 @@ func scanAgentFilesCommand(args []string, stdout, stderr io.Writer) int {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
-			if p != root && skippedDirs[d.Name()] {
+		if p != root && skippedDirs[d.Name()] {
+			if d.IsDir() {
 				return filepath.SkipDir
+			}
+			if d.Type()&fs.ModeSymlink != 0 {
+				return nil
+			}
+		}
+		if d.Type()&fs.ModeSymlink != 0 {
+			if isAgentInstructionFile(p) {
+				return fmt.Errorf("%s: refusing to skip an instruction-file symlink", p)
+			}
+			target, err := os.Stat(p)
+			if err != nil {
+				return fmt.Errorf("%s: cannot inspect symlink target: %w", p, err)
+			}
+			if target.IsDir() {
+				return fmt.Errorf("%s: refusing to skip a symlinked directory that may contain instruction files", p)
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() || !isAgentInstructionFile(p) {
+		if d.IsDir() {
 			return nil
+		}
+		if !isAgentInstructionFile(p) {
+			return nil
+		}
+		if !d.Type().IsRegular() {
+			return fmt.Errorf("%s: instruction file is not a regular file", p)
 		}
 		f, err := os.Open(p)
 		if err != nil {
@@ -248,7 +238,10 @@ func scanAgentFilesCommand(args []string, stdout, stderr io.Writer) int {
 			// Refuse rather than skip: an unscanned file must not pass as clean.
 			return fmt.Errorf("%s: %w", p, err)
 		}
-		report, segments, found := worstReportWithSegments([]string{string(body)}, forAgentFile)
+		report, segments, found, err := worstReportWithSegments([]string{string(body)}, forAgentFile)
+		if err != nil {
+			return fmt.Errorf("%s: %w", p, err)
+		}
 		if !found {
 			report = engine.Report{Verdict: "clean", Findings: []engine.Finding{}}
 		}

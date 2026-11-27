@@ -8,7 +8,7 @@ RSVG ?= rsvg-convert
 EXT_VERSION := $(shell python3 -c "import json; print(json.load(open('extension/manifest.json'))['version'])")
 EXT_ZIP := dist/trip-wire-extension-v$(EXT_VERSION).zip
 
-.PHONY: build wasm cli plugin install-plugin uninstall-plugin icons release-extension test smoke
+.PHONY: build wasm cli plugin install-plugin uninstall-plugin icons release-extension test quality smoke
 
 build: wasm cli plugin
 
@@ -55,6 +55,10 @@ release-extension: wasm
 
 test:
 	$(GO) test ./...
+
+quality:
+	$(GO) test ./cmd/trip-wire -run '^TestDetectionCorpus$$' -v -count=1
+	$(GO) test ./cmd/trip-wire -run '^$$' -bench '^BenchmarkDetectionCorpus$$' -benchmem -benchtime=1s -count=1
 
 smoke: wasm
 	node scripts/smoke.mjs

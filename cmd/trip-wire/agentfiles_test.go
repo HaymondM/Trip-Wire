@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -270,6 +271,71 @@ func TestScanAgentFilesEmptyAndErrors(t *testing.T) {
 	}
 	if code := run([]string{"scan-agent-files", "--fail-on", "sometimes", "."}, nil, &stdout, &stderr); code != exitError {
 		t.Errorf("bad --fail-on should be an error, got %d", code)
+	}
+}
+
+func TestScanAgentFilesRejectsIncompleteHTMLScan(t *testing.T) {
+	root := t.TempDir()
+	body := strings.Repeat("<div>", 600) + "untrusted content"
+	writeFile(t, root, "AGENTS.md", []byte(body))
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"scan-agent-files", root}, nil, &stdout, &stderr); code != exitError ||
+		!strings.Contains(stderr.String(), "exceeds 512") {
+		t.Fatalf("HTML parse failure must not pass as clean: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+}
+
+func TestScanAgentFilesDoesNotSilentlySkipSymlinks(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		linkName   string
+		targetName string
+		directory  bool
+		wantError  bool
+	}{
+		{"instruction file", "AGENTS.md", "source.txt", false, true},
+		{"directory", "linked", "target", true, true},
+		{"ordinary file", "alias.txt", "source.txt", false, false},
+		{"skipped dependency directory", "node_modules", "target", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			target := filepath.Join(root, tc.targetName)
+			if tc.directory {
+				if err := os.Mkdir(target, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(target, []byte("ordinary content"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, filepath.Join(root, tc.linkName)); err != nil {
+				t.Skipf("symlinks unavailable: %v", err)
+			}
+			var stdout, stderr bytes.Buffer
+			code := run([]string{"scan-agent-files", root}, nil, &stdout, &stderr)
+			if tc.wantError && (code != exitError || !strings.Contains(stderr.String(), "symlink")) {
+				t.Fatalf("unscanned symlink should be an error: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+			}
+			if !tc.wantError && code != exitOK {
+				t.Fatalf("unrelated symlink should not fail: code=%d stderr=%s", code, stderr.String())
+			}
+		})
+	}
+}
+
+func TestScanAgentFilesRejectsNonRegularInstructionFile(t *testing.T) {
+	mkfifo, err := exec.LookPath("mkfifo")
+	if err != nil {
+		t.Skip("mkfifo is not available")
+	}
+	root := t.TempDir()
+	if output, err := exec.Command(mkfifo, filepath.Join(root, "CLAUDE.md")).CombinedOutput(); err != nil {
+		t.Fatalf("create named pipe: %v: %s", err, output)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"scan-agent-files", root}, nil, &stdout, &stderr); code != exitError ||
+		!strings.Contains(stderr.String(), "not a regular file") {
+		t.Fatalf("non-regular instruction file should fail: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
 }
 

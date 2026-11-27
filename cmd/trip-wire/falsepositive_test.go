@@ -31,7 +31,10 @@ func TestOwnSourceIsNeverDangerous(t *testing.T) {
 			samples[f+":"+strconv.Itoa(i+1)] = strings.Join(lines[i:min(i+40, len(lines))], "\n")
 		}
 		for name, text := range samples {
-			if r, ok := worstReport([]string{text}); ok && r.Verdict == "dangerous" {
+			r, ok, err := worstReport([]string{text})
+			if err != nil {
+				t.Errorf("%s could not be scanned: %v", name, err)
+			} else if ok && r.Verdict == "dangerous" {
 				var rules []string
 				for _, f := range r.Findings {
 					rules = append(rules, f.RuleID)
